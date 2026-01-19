@@ -37,9 +37,77 @@ namespace SCLocal {
 		loadGenericTrans("local2.json", unLocalTrans);
 	}
 
+	void loadTimelineTrans() {
+		std::vector<std::filesystem::path> searchPaths = {
+			g_localify_base / "Output_JSON",
+			g_localify_base / "../scsp_data/Output_JSON",
+			"scsp_data/Output_JSON",
+			"Output_JSON"
+		};
+
+		std::filesystem::path timelinePath;
+		bool found = false;
+
+		for (const auto& path : searchPaths) {
+			if (std::filesystem::exists(path) && std::filesystem::is_directory(path)) {
+				timelinePath = path;
+				found = true;
+				break;
+			}
+		}
+
+		if (!found) {
+			printf("Timeline translation directory not found. Searched in:\n");
+			for (const auto& path : searchPaths) {
+				// printf(" - %ls\n", std::filesystem::absolute(path).c_str());
+			}
+			return;
+		}
+
+		printf("Loading timeline translations from %ls...\n", timelinePath.c_str());
+		int fileCount = 0;
+		int itemCount = 0;
+
+		try {
+			for (const auto& entry : std::filesystem::recursive_directory_iterator(timelinePath)) {
+				if (entry.is_regular_file() && entry.path().extension() == ".json") {
+					try {
+						std::ifstream file(entry.path());
+						std::string content((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
+						file.close();
+
+						auto jsonArray = nlohmann::json::parse(content);
+						if (jsonArray.is_array()) {
+							for (const auto& item : jsonArray) {
+								if (item.contains("uuid") && item.contains("cn_text")) {
+									std::string uuid = item["uuid"];
+									std::string cnText = item["cn_text"];
+									if (!uuid.empty() && !cnText.empty()) {
+										unLocalTrans[uuid] = cnText;
+										itemCount++;
+									}
+								}
+							}
+							fileCount++;
+						}
+					}
+					catch (std::exception& e) {
+						printf("Error loading timeline file %ls: %s\n", entry.path().c_str(), e.what());
+					}
+				}
+			}
+		}
+		catch (std::exception& e) {
+			printf("Error iterating timeline directory: %s\n", e.what());
+		}
+
+		printf("Loaded %d timeline files with %d entries.\n", fileCount, itemCount);
+	}
+
 	void loadLocalTrans() {
 		loadLrcTrans();
 		loadUnlocalTrans();
+		loadTimelineTrans();
 		localTrans.clear();
 		printf("Loading localify.json...\n");
 		int totalItemCount = 0;
@@ -85,8 +153,8 @@ namespace SCLocal {
 	}
 
 	/*
-	×¢Òâ¼¸¸öÌØÊâµÄ category: mlStory_MainStoryEpisode, mlMusic_CueSheet, mlMusic_MVScene
-	³ý·ÇÁË½âÓÎÏ·ÎÄ¼þ½á¹¹£¬·ñÔò²»ÒªÐÞ¸ÄÕâ¼¸¸öµÄÖµ (²»ÅÅ³ý»¹ÓÐÆäËûµÄ)
+	×¢ï¿½â¼¸ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ category: mlStory_MainStoryEpisode, mlMusic_CueSheet, mlMusic_MVScene
+	ï¿½ï¿½ï¿½ï¿½ï¿½Ë½ï¿½ï¿½ï¿½Ï·ï¿½Ä¼ï¿½ï¿½á¹¹ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Òªï¿½Þ¸ï¿½ï¿½â¼¸ï¿½ï¿½ï¿½ï¿½Öµ (ï¿½ï¿½ï¿½Å³ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½)
 	*/
 	bool getLocalifyText(const std::wstring& category, int id, std::wstring* getStr) {
 		const auto categoryS = utility::conversions::to_utf8string(category);
@@ -217,4 +285,11 @@ namespace SCLocal {
 		return false;
 	}
 
+	bool getSubtitle(const std::string& key, std::string& outText) {
+		if (auto iter = unLocalTrans.find(key); iter != unLocalTrans.end()) {
+			outText = iter->second;
+			return true;
+		}
+		return false;
+	}
 }

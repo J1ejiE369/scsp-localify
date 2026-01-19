@@ -468,6 +468,7 @@ typedef Il2CppObject* (*il2cpp_value_box_t)(Il2CppClass* klass, void* data);
 typedef void* (*il2cpp_object_unbox_t)(Il2CppObject* obj);
 typedef uint32_t(*il2cpp_array_length_t)(void* arr);
 typedef void* (*il2cpp_class_get_parent_t)(void* klass);
+typedef FieldInfo* (*il2cpp_class_get_fields_t)(void* klass, void** iter); // Added typedef
 typedef const char* (*il2cpp_method_get_name_t)(const MethodInfo* method);
 typedef void* (*il2cpp_method_get_class_t)(const MethodInfo* method);
 typedef Il2CppClass* (*il2cpp_object_get_class_t)(Il2CppObject* instance);
@@ -523,6 +524,7 @@ extern il2cpp_value_box_t il2cpp_value_box;
 extern il2cpp_object_unbox_t il2cpp_object_unbox;
 extern il2cpp_array_length_t il2cpp_array_length;
 extern il2cpp_class_get_parent_t il2cpp_class_get_parent;
+extern il2cpp_class_get_fields_t il2cpp_class_get_fields; // Added extern
 extern il2cpp_method_get_name_t il2cpp_method_get_name;
 extern il2cpp_method_get_class_t il2cpp_method_get_class;
 extern il2cpp_object_get_class_t il2cpp_object_get_class;

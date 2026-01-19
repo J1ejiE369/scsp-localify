@@ -64,22 +64,26 @@ namespace debug {
 	void DumpRegisters() {
 		CONTEXT ctx;
 		RtlCaptureContext(&ctx); // or CaptureContext(&ctx) on some toolchains
-
-		std::printf("RIP=%016llX RSP=%016llX RBP=%016llX\n",
-			(unsigned long long)ctx.Rip,
-			(unsigned long long)ctx.Rsp,
-			(unsigned long long)ctx.Rbp);
-		std::printf("RAX=%016llX RBX=%016llX RCX=%016llX RDX=%016llX\n",
-			(unsigned long long)ctx.Rax,
-			(unsigned long long)ctx.Rbx,
-			(unsigned long long)ctx.Rcx,
-			(unsigned long long)ctx.Rdx);
-		std::printf("RSI=%016llX RDI=%016llX  R8=%016llX  R9=%016llX\n",
-			(unsigned long long)ctx.Rsi,
-			(unsigned long long)ctx.Rdi,
-			(unsigned long long)ctx.R8,
-			(unsigned long long)ctx.R9);
+		DumpExceptionContext(&ctx);
 	}
+
+	void DumpExceptionContext(PCONTEXT ctx) {
+		std::printf("RIP=%016llX RSP=%016llX RBP=%016llX\n",
+			(unsigned long long)ctx->Rip,
+			(unsigned long long)ctx->Rsp,
+			(unsigned long long)ctx->Rbp);
+		std::printf("RAX=%016llX RBX=%016llX RCX=%016llX RDX=%016llX\n",
+			(unsigned long long)ctx->Rax,
+			(unsigned long long)ctx->Rbx,
+			(unsigned long long)ctx->Rcx,
+			(unsigned long long)ctx->Rdx);
+		std::printf("RSI=%016llX RDI=%016llX  R8=%016llX  R9=%016llX\n",
+			(unsigned long long)ctx->Rsi,
+			(unsigned long long)ctx->Rdi,
+			(unsigned long long)ctx->R8,
+			(unsigned long long)ctx->R9);
+	}
+
 
 	void PrintNativeStackTrace(ULONG framesToSkip,  ULONG framesToCapture) {
 		PVOID* backTrace = new PVOID[framesToCapture];
@@ -120,6 +124,57 @@ LONG WINAPI seh_filter(EXCEPTION_POINTERS* ep) {
 	debug::DumpRegisters();
 
 	return EXCEPTION_EXECUTE_HANDLER;
+}
+
+
+LONG WINAPI UnhandledCrashHandler(EXCEPTION_POINTERS* ep) {
+	DWORD code = ep->ExceptionRecord->ExceptionCode;
+	PVOID addr = ep->ExceptionRecord->ExceptionAddress;
+
+	// Ensure we have a console or some output
+	if (!GetConsoleWindow()) {
+		AllocConsole();
+		freopen("CONOUT$", "w", stdout);
+		freopen("CONOUT$", "w", stderr);
+	}
+
+	std::cerr << "\n\n!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n";
+	std::cerr << "!!!           CRASH DETECTED             !!!\n";
+	std::cerr << "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n";
+	std::cerr << "Exception Code: 0x" << std::hex << code << std::dec << "\n";
+	std::cerr << "Address: " << addr << "\n";
+
+	switch (code) {
+	case EXCEPTION_ACCESS_VIOLATION:
+		std::cerr << "  Type: Access Violation" << std::endl;
+		break;
+	case EXCEPTION_INT_DIVIDE_BY_ZERO:
+		std::cerr << "  Type: Divide by Zero" << std::endl;
+		break;
+	case EXCEPTION_STACK_OVERFLOW:
+		std::cerr << "  Type: Stack Overflow" << std::endl;
+		break;
+	default:
+		std::cerr << "  Type: Unknown Exception (code=" << std::hex << code << ")" << std::endl;
+		break;
+	}
+
+	debug::DumpRelationMemoryHex((const void*)((uintptr_t)addr - 0x20));
+	if (ep->ContextRecord) {
+		debug::DumpExceptionContext(ep->ContextRecord);
+	}
+	else {
+		debug::DumpRegisters();
+	}
+
+	std::cerr << "\nProcess frozen. Press CTRL+C to terminate or close the window.\n";
+
+	// Freeze
+	while (true) {
+		std::this_thread::sleep_for(std::chrono::seconds(1));
+	}
+
+	return EXCEPTION_CONTINUE_SEARCH;
 }
 
 

@@ -316,6 +316,8 @@ int __stdcall DllMain(HINSTANCE dllModule, DWORD reason, LPVOID)
 {
 	if (reason == DLL_PROCESS_ATTACH)
 	{
+		SetUnhandledExceptionFilter(UnhandledCrashHandler);
+
 		// the DMM Launcher set start path to system32 wtf????
 		std::string module_name;
 		module_name.resize(MAX_PATH);

@@ -1811,6 +1811,55 @@ namespace
 	// Normal 3D Live
 	HOOK_ORIG_TYPE DepthOfFieldClip_CreatePlayable_orig;
 	void* DepthOfFieldClip_CreatePlayable_hook(void* retstr, void* _this, void* graph, void* go, void* mtd) {
+		// Debug logging to trace execution
+		auto this_klass = il2cpp_symbols::get_class_from_instance(_this);
+		auto klass_name = il2cpp_class_get_name(this_klass);
+		printf("[CreatePlayable_hook] Called for class: %s\n", klass_name);
+
+		// Logic for DramaSubtitlePlayableAsset (Merged due to shared address/method folding)
+		static auto DramaSubtitlePlayableAsset_klass = il2cpp_symbols::get_class("PRISM.Interactions.Drama.dll", "PRISM.Interactions.Drama", "DramaSubtitlePlayableAsset");
+		if (!DramaSubtitlePlayableAsset_klass)
+			DramaSubtitlePlayableAsset_klass = il2cpp_symbols::get_class("PRISM.Legacy.dll", "PRISM.Interactions.Drama", "DramaSubtitlePlayableAsset");
+
+		if (DramaSubtitlePlayableAsset_klass) {
+			if (this_klass == DramaSubtitlePlayableAsset_klass) {
+				printf("[CreatePlayable_hook] Matched DramaSubtitlePlayableAsset!\n");
+				static auto behaviour_field = il2cpp_class_get_field_from_name(DramaSubtitlePlayableAsset_klass, "behaviour");
+				if (!behaviour_field) behaviour_field = il2cpp_class_get_field_from_name(DramaSubtitlePlayableAsset_klass, "m_Template");
+
+				if (behaviour_field) {
+					auto behaviour = il2cpp_field_get_value_object(behaviour_field, _this);
+					if (behaviour) {
+						static auto behaviour_klass = il2cpp_symbols::get_class_from_instance(behaviour);
+						static auto uniqueId_field = il2cpp_class_get_field_from_name(behaviour_klass, "uniqueId");
+						if (!uniqueId_field) uniqueId_field = il2cpp_class_get_field_from_name(behaviour_klass, "uuid");
+
+						static auto text_field = il2cpp_class_get_field_from_name(behaviour_klass, "text");
+						if (!text_field) text_field = il2cpp_class_get_field_from_name(behaviour_klass, "_text");
+
+						if (uniqueId_field && text_field) {
+							Il2CppString* uniqueId = nullptr;
+							il2cpp_field_get_value(behaviour, uniqueId_field, &uniqueId);
+
+							if (uniqueId) {
+								std::string uidStr = uniqueId->ToUtf8String();
+								printf("[CreatePlayable_hook] Found uniqueId: %s\n", uidStr.c_str());
+								std::string translation;
+								if (SCLocal::getSubtitle(uidStr, translation)) {
+									printf("Translating Drama Subtitle: %s -> %s\n", uidStr.c_str(), translation.c_str());
+									auto wTranslation = utility::conversions::to_utf16string(translation);
+									il2cpp_field_set_value(behaviour, text_field, il2cpp_string_new_utf16((const wchar_t*)wTranslation.c_str(), wTranslation.length()));
+								}
+								else {
+									printf("[CreatePlayable_hook] No translation found for: %s\n", uidStr.c_str());
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+
 		if (g_enable_free_camera) {
 			static auto DepthOfFieldClip_klass = il2cpp_symbols::get_class("PRISM.Legacy.dll", "PRISM", "DepthOfFieldClip");
 			static auto DepthOfFieldClip_behaviour_field = il2cpp_class_get_field_from_name(DepthOfFieldClip_klass, "behaviour");
@@ -1835,6 +1884,45 @@ namespace
 		}
 		return HOOK_CAST_CALL(void*, DepthOfFieldClip_CreatePlayable)(retstr, _this, graph, go, mtd);
 	}
+
+	HOOK_ORIG_TYPE DramaSubtitlePlayableAsset_CreatePlayable_orig;
+	// Merged into DepthOfFieldClip_CreatePlayable_hook due to method folding/shared address
+	/*
+	void* DramaSubtitlePlayableAsset_CreatePlayable_hook(void* _this, void* graph, void* owner) {
+		static auto klass = il2cpp_symbols::get_class_from_instance(_this);
+		static auto behaviour_field = il2cpp_class_get_field_from_name(klass, "behaviour");
+		if (!behaviour_field) behaviour_field = il2cpp_class_get_field_from_name(klass, "m_Template");
+
+		if (behaviour_field) {
+			auto behaviour = il2cpp_field_get_value_object(behaviour_field, _this);
+			if (behaviour) {
+				static auto behaviour_klass = il2cpp_symbols::get_class_from_instance(behaviour);
+				static auto uniqueId_field = il2cpp_class_get_field_from_name(behaviour_klass, "uniqueId");
+				if (!uniqueId_field) uniqueId_field = il2cpp_class_get_field_from_name(behaviour_klass, "uuid");
+
+				static auto text_field = il2cpp_class_get_field_from_name(behaviour_klass, "text");
+				if (!text_field) text_field = il2cpp_class_get_field_from_name(behaviour_klass, "_text");
+
+				if (uniqueId_field && text_field) {
+					Il2CppString* uniqueId = nullptr;
+					il2cpp_field_get_value(behaviour, uniqueId_field, &uniqueId);
+
+					if (uniqueId) {
+						std::string uidStr = uniqueId->ToUtf8String();
+						std::string translation;
+						if (SCLocal::getSubtitle(uidStr, translation)) {
+							// printf("Translating Drama Subtitle: %s\n", uidStr.c_str());
+							auto wTranslation = utility::conversions::to_utf16string(translation);
+							il2cpp_field_set_value(behaviour, text_field, il2cpp_string_new_utf16((const wchar_t*)wTranslation.c_str(), wTranslation.length()));
+						}
+					}
+				}
+			}
+		}
+
+		return HOOK_CAST_CALL(void*, DramaSubtitlePlayableAsset_CreatePlayable)(_this, graph, owner);
+	}
+	*/
 
 	// obsolete hook removed
 	// HDR Live
@@ -3236,6 +3324,17 @@ namespace
 			"DepthOfFieldClip", "CreatePlayable", 2
 		);
 
+		auto DramaSubtitlePlayableAsset_CreatePlayable_addr = il2cpp_symbols::get_method_pointer(
+			"PRISM.Interactions.Drama.dll", "PRISM.Interactions.Drama",
+			"DramaSubtitlePlayableAsset", "CreatePlayable", 2
+		);
+		if (!DramaSubtitlePlayableAsset_CreatePlayable_addr) {
+			DramaSubtitlePlayableAsset_CreatePlayable_addr = il2cpp_symbols::get_method_pointer(
+				"PRISM.Legacy.dll", "PRISM.Interactions.Drama",
+				"DramaSubtitlePlayableAsset", "CreatePlayable", 2
+			);
+		}
+
 		/*auto PostProcess_DepthOfFieldClip_CreatePlayable_addr = il2cpp_symbols::get_method_pointer(
 			"PRISM.Legacy.dll", "UnityEngine.Rendering.Universal.PostProcess",
 			"DepthOfFieldClip", "CreatePlayable", 2
@@ -3478,6 +3577,7 @@ namespace
 		ADD_HOOK(InvokeMoveNext, "InvokeMoveNext at %p");
 		// ADD_HOOK(Live_SetEnableDepthOfField, "Live_SetEnableDepthOfField at %p");
 		ADD_HOOK(DepthOfFieldClip_CreatePlayable, "DepthOfFieldClip_CreatePlayable at %p");
+		// ADD_HOOK(DramaSubtitlePlayableAsset_CreatePlayable, "DramaSubtitlePlayableAsset_CreatePlayable at %p");
 		//ADD_HOOK(PostProcess_DepthOfFieldClip_CreatePlayable, "PostProcess_DepthOfFieldClip_CreatePlayable at %p");
 		// ADD_HOOK(Live_Update, "Live_Update at %p");
 		//ADD_HOOK(LiveCostumeChangeView_setTryOnMode, "LiveCostumeChangeView_setTryOnMode at %p");
