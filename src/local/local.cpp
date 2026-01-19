@@ -1,11 +1,19 @@
 #include <stdinclude.hpp>
+#include "local.hpp"
+#include <fstream>
+#include <rapidjson/document.h>
+#include <rapidjson/istreamwrapper.h>
+#include <filesystem>
+#include <nlohmann/json.hpp>
 
+using namespace std;
 
 namespace SCLocal {
 	namespace {
 		std::unordered_map<std::string, std::unordered_map<int, std::string>> localTrans{};
 		std::unordered_map<std::string, std::string> lrcTrans{};
-		std::unordered_map<std::string, std::string> unLocalTrans{};
+		std::unordered_map<std::string, std::string> unLocalTrans_Legacy{}; // 用于存储 local2.json 等旧数据
+		std::unordered_map<std::string, SubtitleData> unLocalTrans{}; // 用于存储 Timeline 数据 (UUID -> SubtitleData)
 	}
 
 	void loadGenericTrans(const char* fileName, std::unordered_map<std::string, std::string>& transDict) {
@@ -34,37 +42,18 @@ namespace SCLocal {
 		loadGenericTrans("lyrics.json", lrcTrans);
 	}
 	void loadUnlocalTrans() {
-		loadGenericTrans("local2.json", unLocalTrans);
+		loadGenericTrans("local2.json", unLocalTrans_Legacy);
 	}
 
 	void loadTimelineTrans() {
-		std::vector<std::filesystem::path> searchPaths = {
-			g_localify_base / "Output_JSON",
-			g_localify_base / "../scsp_data/Output_JSON",
-			"scsp_data/Output_JSON",
-			"Output_JSON"
-		};
+		std::filesystem::path timelinePath = g_localify_base / "Output_JSON";
 
-		std::filesystem::path timelinePath;
-		bool found = false;
-
-		for (const auto& path : searchPaths) {
-			if (std::filesystem::exists(path) && std::filesystem::is_directory(path)) {
-				timelinePath = path;
-				found = true;
-				break;
-			}
-		}
-
-		if (!found) {
-			printf("Timeline translation directory not found. Searched in:\n");
-			for (const auto& path : searchPaths) {
-				// printf(" - %ls\n", std::filesystem::absolute(path).c_str());
-			}
+		if (!std::filesystem::exists(timelinePath) || !std::filesystem::is_directory(timelinePath)) {
+			printf("Timeline translation directory not found: %ls\n", timelinePath.c_str());
 			return;
 		}
 
-		printf("Loading timeline translations from %ls...\n", timelinePath.c_str());
+		printf("Loading timeline translations (V2) from %ls...\n", timelinePath.c_str());
 		int fileCount = 0;
 		int itemCount = 0;
 
@@ -79,11 +68,46 @@ namespace SCLocal {
 						auto jsonArray = nlohmann::json::parse(content);
 						if (jsonArray.is_array()) {
 							for (const auto& item : jsonArray) {
-								if (item.contains("uuid") && item.contains("cn_text")) {
+								if (item.contains("uuid")) {
 									std::string uuid = item["uuid"];
-									std::string cnText = item["cn_text"];
-									if (!uuid.empty() && !cnText.empty()) {
-										unLocalTrans[uuid] = cnText;
+									SubtitleData data;
+
+									// 1. 读取译文
+									if (item.contains("translation")) {
+										data.translation = item["translation"];
+									}
+									else if (item.contains("cn_text")) { // 兼容旧格式
+										data.translation = item["cn_text"];
+									}
+									
+									// 移除译文中的换行符 - REVERTED for Interleaved Layout experiment
+									// The user wants to try interleaving lines based on newlines.
+									/*
+									if (!data.translation.empty()) {
+										data.translation.erase(std::remove(data.translation.begin(), data.translation.end(), '\n'), data.translation.end());
+										data.translation.erase(std::remove(data.translation.begin(), data.translation.end(), '\r'), data.translation.end());
+									}
+									*/
+
+									// 2. 读取原文
+									if (item.contains("original")) {
+										data.original = item["original"];
+									}
+									else if (item.contains("jp_text")) { // 兼容旧格式
+										data.original = item["jp_text"];
+									}
+
+									// 3. 读取配置
+									if (item.contains("config")) {
+										auto& cfg = item["config"];
+										if (cfg.contains("zhSize")) data.config.zhSize = cfg["zhSize"];
+										if (cfg.contains("jpSize")) data.config.jpSize = cfg["jpSize"];
+										if (cfg.contains("lineSpacing")) data.config.lineSpacing = cfg["lineSpacing"];
+										if (cfg.contains("dualMode")) data.config.dualMode = cfg["dualMode"];
+									}
+
+									if (!uuid.empty() && !data.translation.empty()) {
+										unLocalTrans[uuid] = data;
 										itemCount++;
 									}
 								}
@@ -127,7 +151,7 @@ namespace SCLocal {
 					const auto& subIdStr = v.key();
 					const auto subId = std::stoi(subIdStr);
 					std::string localText = v.value();
-					if (auto it = unLocalTrans.find(localText); it != unLocalTrans.end()) {
+					if (auto it = unLocalTrans_Legacy.find(localText); it != unLocalTrans_Legacy.end()) {
 						localText = it->second;
 					}
 					localTrans[key][subId] = localText;
@@ -153,8 +177,8 @@ namespace SCLocal {
 	}
 
 	/*
-	ע�⼸������� category: mlStory_MainStoryEpisode, mlMusic_CueSheet, mlMusic_MVScene
-	�����˽���Ϸ�ļ��ṹ������Ҫ�޸��⼸����ֵ (���ų�����������)
+	ע⼸ category: mlStory_MainStoryEpisode, mlMusic_CueSheet, mlMusic_MVScene
+	˽ϷļṹҪ޸⼸ֵ (ų)
 	*/
 	bool getLocalifyText(const std::wstring& category, int id, std::wstring* getStr) {
 		const auto categoryS = utility::conversions::to_utf8string(category);
@@ -273,7 +297,7 @@ namespace SCLocal {
 	bool getGameUnlocalTrans(const std::wstring& orig, std::string* newStr) {
 		// const auto origStr = replaceAll(replaceAll(utility::conversions::to_utf8string(orig), "\n", "\\n"), "\r", "\\r");
 		const auto origStr = utility::conversions::to_utf8string(orig);
-		if (auto iter = unLocalTrans.find(origStr); iter != unLocalTrans.end()) {
+		if (auto iter = unLocalTrans_Legacy.find(origStr); iter != unLocalTrans_Legacy.end()) {
 			*newStr = iter->second;
 			return true;
 		}
@@ -285,9 +309,9 @@ namespace SCLocal {
 		return false;
 	}
 
-	bool getSubtitle(const std::string& key, std::string& outText) {
+	bool getSubtitle(const std::string& key, SubtitleData& outData) {
 		if (auto iter = unLocalTrans.find(key); iter != unLocalTrans.end()) {
-			outText = iter->second;
+			outData = iter->second;
 			return true;
 		}
 		return false;

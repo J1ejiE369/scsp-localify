@@ -49,6 +49,20 @@ UnitIdol overridenMvUnitIdols[8];
 std::map<std::string, std::string> replacementTexureNames{};
 
 
+// Utility to split string by newline
+std::vector<std::string> splitString(const std::string& str) {
+	std::vector<std::string> lines;
+	std::string::size_type pos = 0;
+	std::string::size_type prev = 0;
+	while ((pos = str.find('\n', prev)) != std::string::npos) {
+		lines.push_back(str.substr(prev, pos - prev));
+		prev = pos + 1;
+	}
+	lines.push_back(str.substr(prev));
+	return lines;
+}
+
+
 void loadGUIDataCache() {
 	try {
 		if (!std::filesystem::exists("scsp-gui-save.json")) return;
@@ -1844,14 +1858,69 @@ namespace
 							if (uniqueId) {
 								std::string uidStr = uniqueId->ToUtf8String();
 								printf("[CreatePlayable_hook] Found uniqueId: %s\n", uidStr.c_str());
-								std::string translation;
-								if (SCLocal::getSubtitle(uidStr, translation)) {
-									printf("Translating Drama Subtitle: %s -> %s\n", uidStr.c_str(), translation.c_str());
-									auto wTranslation = utility::conversions::to_utf16string(translation);
+								SCLocal::SubtitleData subData;
+								if (SCLocal::getSubtitle(uidStr, subData)) {
+									printf("Translating Drama Subtitle: %s -> %s\n", uidStr.c_str(), subData.translation.c_str());
+
+									std::string finalText;
+									if (subData.config.dualMode && !subData.original.empty()) {
+										// Interleaved Layout: JP line -> ZH line -> JP line -> ZH line ...
+										// Using splitString helper to break text into lines
+										
+										auto zhLines = splitString(subData.translation);
+										auto jpLines = splitString(subData.original);
+										
+										std::string combinedText = "";
+										size_t maxLines = std::max(zhLines.size(), jpLines.size());
+										
+										for (size_t i = 0; i < maxLines; i++) {
+											if (i > 0) combinedText += "\n";
+											
+											// Japanese Line (Top) - Only if available
+											if (i < jpLines.size() && !jpLines[i].empty()) {
+												std::string jpLine = jpLines[i];
+												jpLine.erase(std::remove(jpLine.begin(), jpLine.end(), '\r'), jpLine.end());
+												
+												// Use nobr to force single line for this segment
+												// Apply line-height adjustment to JP line to control gap with ZH line below
+												// lineSpacing is treated as percentage offset. E.g. -20 means 80% line height.
+												int jpLineHeight = 100 + subData.config.lineSpacing;
+												combinedText += std::format("<line-height={}%><nobr><size={}><color=#CCCCCC>{}</color></size></nobr></line-height>", jpLineHeight, subData.config.jpSize, jpLine);
+												combinedText += "\n"; // Newline after JP
+											}
+											
+											// Chinese Line (Bottom) - Only if available
+											if (i < zhLines.size() && !zhLines[i].empty()) {
+												std::string zhLine = zhLines[i];
+												zhLine.erase(std::remove(zhLine.begin(), zhLine.end(), '\r'), zhLine.end());
+												
+												// Use nobr to force single line for this segment as well
+												// Reset line-height to 100% for ZH line so gap to next JP line remains standard
+												std::string zhFormatted = std::format("<line-height=100%><nobr><size={}>{}</size></nobr></line-height>", subData.config.zhSize, zhLine);
+												
+												combinedText += zhFormatted;
+											}
+										}
+										finalText = combinedText;
+									} else {
+										// Single mode (or missing original)
+										finalText = subData.translation;
+									}
+
+									auto wTranslation = utility::conversions::to_utf16string(finalText);
 									il2cpp_field_set_value(behaviour, text_field, il2cpp_string_new_utf16((const wchar_t*)wTranslation.c_str(), wTranslation.length()));
 								}
 								else {
 									printf("[CreatePlayable_hook] No translation found for: %s\n", uidStr.c_str());
+									
+									// Automatic export of missing text
+									Il2CppString* currText = nullptr;
+									il2cpp_field_get_value(behaviour, text_field, &currText);
+									std::string originalText = "";
+									if (currText) {
+										originalText = currText->ToUtf8String();
+									}
+									printf("[Missing-Export] UUID: %s | Original: %s\n", uidStr.c_str(), originalText.c_str());
 								}
 							}
 						}
