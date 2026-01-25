@@ -20,7 +20,7 @@ std::function<void()> g_on_hook_ready;
 std::function<void()> g_on_close;
 std::function<void()> on_hotKey_0;
 bool needPrintStack = false;
-bool g_debugMode = false;
+bool g_debugMode = true;
 std::vector<std::pair<std::pair<int, int>, int>> replaceDressResIds{};
 std::map<std::string, CharaParam_t> charaParam{};
 CharaParam_t baseParam(0.0f, 0.0f, 0.0f, 0.0f, 0.0f);
@@ -3107,7 +3107,7 @@ void* ScenarioManager_Init_hook(void* retstr, void* _this, Il2CppString* scrName
 	void ModifyMagicaCloth(Il2CppObject* cloth) {
 		if (g_magicacloth_output_cloth) {
 			auto name = il2cpp_symbols::get_unity_gameobject_fullname(cloth);
-			std::cout << "ModifyMagicaCloth: " << name << std::endl;
+			// std::cout << "ModifyMagicaCloth: " << name << std::endl;
 		}
 
 		if (!g_magicacloth_override) return;
