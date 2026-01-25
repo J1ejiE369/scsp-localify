@@ -11,4 +11,5 @@ namespace MHotkey {
 	void setUmaCommandLine(std::string args);
 	void setTlgPort(int port);
 	void setMKeyBoardRawCallBack(std::function<void(int, int)> cbfunc);
+	void register_hotkey(int key, std::function<void()> callback);
 }

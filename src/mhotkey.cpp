@@ -28,6 +28,11 @@ namespace MHotkey{
         std::function<void(int, DWORD, DWORD, DWORD, DWORD, DWORD, DWORD, DWORD, DWORD)> mKeyBoardCallBack = nullptr;
         std::function<void(int, int)> mKeyBoardRawCallBack = nullptr;
         bool hotKeyThreadStarted = false;
+        std::map<int, std::function<void()>> hotkeyMap;
+    }
+
+    void register_hotkey(int key, std::function<void()> callback) {
+        hotkeyMap[key] = callback;
     }
 
     bool get_is_plugin_open() {
@@ -65,6 +70,11 @@ namespace MHotkey{
 
     WNDPROC g_pfnOldWndProc = NULL;
     LRESULT CALLBACK WndProcCallback(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {
+        // Debug key events
+        if (uMsg == WM_KEYDOWN) {
+            // printf("[WndProc] WM_KEYDOWN: %llu\n", wParam);
+        }
+
         DWORD SHIFT_key = 0;
         DWORD CTRL_key = 0;
         DWORD ALT_key = 0;
@@ -111,7 +121,14 @@ namespace MHotkey{
         case WM_SYSKEYUP:
         case WM_KEYUP: {
             int key = wParam;
+            // printf("[WndProc] WM_KEYUP: %d\n", key);
             if (mKeyBoardRawCallBack != nullptr) mKeyBoardRawCallBack(uMsg, key);
+            
+            // Check registered hotkeys on KeyUp
+            if (auto it = hotkeyMap.find(key); it != hotkeyMap.end()) {
+                printf("[WndProc] Triggering hotkey callback for key: %d\n", key);
+                it->second();
+            }
         }; break;
 
         case WM_SYSKEYDOWN:
@@ -176,8 +193,23 @@ namespace MHotkey{
 
     void InstallWndProcHook()
     {
-        g_pfnOldWndProc = (WNDPROC)GetWindowLongPtr(FindWindowW(L"UnityWndClass", L"imasscprism"), GWLP_WNDPROC);
-        SetWindowLongPtr(FindWindowW(L"UnityWndClass", L"imasscprism"), GWLP_WNDPROC, (LONG_PTR)WndProcCallback);
+        HWND hWnd = FindWindowW(L"UnityWndClass", L"imasscprism");
+        if (!hWnd) {
+            printf("[MHotkey] Failed to find window 'imasscprism'. Retrying with NULL title...\n");
+            hWnd = FindWindowW(L"UnityWndClass", NULL);
+        }
+
+        if (hWnd) {
+            g_pfnOldWndProc = (WNDPROC)GetWindowLongPtr(hWnd, GWLP_WNDPROC);
+            if (g_pfnOldWndProc) {
+                SetWindowLongPtr(hWnd, GWLP_WNDPROC, (LONG_PTR)WndProcCallback);
+                printf("[MHotkey] WndProc hook installed on HWND: %p\n", hWnd);
+            } else {
+                printf("[MHotkey] Failed to get old WndProc.\n");
+            }
+        } else {
+            printf("[MHotkey] Failed to find Unity window.\n");
+        }
     }
 
     void UninstallWndProcHook(HWND hWnd)
@@ -206,9 +238,6 @@ namespace MHotkey{
     {
         MHotkey::hotk = sethotk;
         if (hotKeyThreadStarted) return 1;
-
-        HANDLE hThread;
-        DWORD dwThread;
 
         hotKeyThreadStarted = true;
         InstallWndProcHook();

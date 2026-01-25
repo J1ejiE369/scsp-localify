@@ -26,6 +26,11 @@ std::map<std::string, CharaParam_t> charaParam{};
 CharaParam_t baseParam(0.0f, 0.0f, 0.0f, 0.0f, 0.0f);
 std::vector<std::function<bool()>> mainThreadTasks{};  // 返回 true，执行后移除列表；返回 false，执行后不移除
 
+// Dump Module Globals
+bool g_isDumping = false;
+std::string g_dumpingScenarioId = "";
+std::set<std::string> g_dumpedUUIDs;
+
 std::map<int, CharaSwayStringParam_t> charaSwayStringOffset{};
 std::map<int, std::string> swayTypes{
 	{0x0, "Test"},
@@ -1912,6 +1917,19 @@ void* ScenarioManager_Init_hook(void* retstr, void* _this, Il2CppString* scrName
 	if (scrName) {
 		g_currentScenarioId = scrName->ToUtf8String();
 		if (g_debugMode) printf("[ScenarioManager] Init Scenario: %s\n", g_currentScenarioId.c_str());
+
+		// Dump Logic: Check if translation exists
+		if (!SCLocal::isScenarioTranslated(g_currentScenarioId)) {
+			if (g_debugMode) printf("[Dump] Scenario %s not found in loaded translations. Marking for dump.\n", g_currentScenarioId.c_str());
+			SCLocal::addToMissingList(g_currentScenarioId);
+			g_isDumping = true;
+			g_dumpingScenarioId = g_currentScenarioId;
+			g_dumpedUUIDs.clear();
+		}
+		else {
+			g_isDumping = false;
+			if (g_debugMode) printf("[Dump] Scenario %s skipped (already translated).\n", g_currentScenarioId.c_str());
+		}
 	}
 	return HOOK_CAST_CALL(void*, ScenarioManager_Init)(retstr, _this, scrName);
 }
@@ -2080,14 +2098,23 @@ void* ScenarioManager_Init_hook(void* retstr, void* _this, Il2CppString* scrName
 									if (g_debugMode) printf("[CreatePlayable_hook] No translation found for: %s\n", uidStr.c_str());
 									
 									// Automatic export of missing text
-									if (g_auto_dump_all_json) {
+									if (g_isDumping) {
 										Il2CppString* currText = nullptr;
 										il2cpp_field_get_value(behaviour, text_field, &currText);
 										std::string originalText = "";
 										if (currText) {
 											originalText = currText->ToUtf8String();
 										}
-										printf("[Missing-Export] UUID: %s | Original: %s\n", uidStr.c_str(), originalText.c_str());
+
+										if (!g_dumpedUUIDs.contains(uidStr)) {
+											g_dumpedUUIDs.insert(uidStr);
+											if (SCLocal::appendDumpEntry(g_dumpingScenarioId, uidStr, originalText)) {
+												if (g_debugMode) printf("[Dump] Appended entry for %s\n", uidStr.c_str());
+											}
+											else {
+												// if (g_debugMode) printf("[Dump] Skipped duplicate entry for %s\n", uidStr.c_str());
+											}
+										}
 									}
 								}
 							}
@@ -2512,8 +2539,32 @@ void* ScenarioManager_Init_hook(void* retstr, void* _this, Il2CppString* scrName
 		return HOOK_CAST_CALL(void, AssembleCharacter_ApplyParam)(mdl, height, bust, head, arm, hand);
 	}
 
+	bool hotkey_initialized = false;
+	bool f5_key_state = false; // Debounce state for F5
+
 	HOOK_ORIG_TYPE MainThreadDispatcher_LateUpdate_orig;
 	void MainThreadDispatcher_LateUpdate_hook(void* _this, void* method) {
+		if (!hotkey_initialized) {
+			// Try to initialize hotkey hook (requires window to be created)
+			if (MHotkey::start_hotkey(hotKey)) {
+				hotkey_initialized = true;
+				if (g_debugMode) printf("[Hook] Hotkey hook initialized in LateUpdate.\n");
+			}
+		}
+
+		// Polling F5 key directly to bypass potential WndProc issues
+		if (GetAsyncKeyState(VK_F5) & 0x8000) {
+			if (!f5_key_state) {
+				f5_key_state = true;
+				if (g_debugMode) printf("[HotKey] F5 pressed (Polling). Reloading translations...\n");
+				SCLocal::loadLocalTrans();
+				if (g_debugMode) printf("[HotKey] Reload complete.\n");
+			}
+		}
+		else {
+			f5_key_state = false;
+		}
+
 		try {
 			auto it = mainThreadTasks.begin();
 			while (it != mainThreadTasks.end()) {
@@ -3838,6 +3889,13 @@ void* ScenarioManager_Init_hook(void* retstr, void* _this, Il2CppString* scrName
 			startSCGUI();
 			// needPrintStack = !needPrintStack;
 			};
+		
+		MHotkey::register_hotkey(VK_F5, []() {
+			if (g_debugMode) printf("[HotKey] Reloading translations...\n");
+			SCLocal::loadLocalTrans();
+			if (g_debugMode) printf("[HotKey] Reload complete.\n");
+		});
+
 		SCCamera::initCameraSettings();
 		g_on_hook_ready();
 

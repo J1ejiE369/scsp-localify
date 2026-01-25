@@ -5,6 +5,8 @@
 #include <rapidjson/istreamwrapper.h>
 #include <filesystem>
 #include <nlohmann/json.hpp>
+#include <unordered_set>
+#include <cctype>
 
 using namespace std;
 
@@ -14,6 +16,7 @@ namespace SCLocal {
 		std::unordered_map<std::string, std::string> lrcTrans{};
 		std::unordered_map<std::string, std::string> unLocalTrans_Legacy{}; // 用于存储 local2.json 等旧数据
 		std::unordered_map<std::string, SubtitleData> unLocalTrans{}; // 用于存储 Timeline 数据 (UUID -> SubtitleData)
+		std::unordered_set<std::string> loadedScenarios{}; // 已加载的剧情ID列表
 	}
 
 	void loadGenericTrans(const char* fileName, std::unordered_map<std::string, std::string>& transDict) {
@@ -56,6 +59,7 @@ namespace SCLocal {
 		printf("Loading timeline translations (V2) from %ls...\n", timelinePath.c_str());
 		int fileCount = 0;
 		int itemCount = 0;
+		loadedScenarios.clear();
 
 		try {
 			for (const auto& entry : std::filesystem::recursive_directory_iterator(timelinePath)) {
@@ -63,6 +67,7 @@ namespace SCLocal {
 					auto ext = entry.path().extension().string();
 					std::transform(ext.begin(), ext.end(), ext.begin(), ::tolower);
 					if (ext == ".json") {
+						loadedScenarios.insert(entry.path().stem().string());
 						try {
 							std::ifstream file(entry.path());
 						std::string content((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
@@ -307,6 +312,134 @@ namespace SCLocal {
 	bool getSubtitle(const std::string& key, SubtitleData& outData) {
 		if (auto iter = unLocalTrans.find(key); iter != unLocalTrans.end()) {
 			outData = iter->second;
+			return true;
+		}
+		return false;
+	}
+
+	bool isScenarioTranslated(const std::string& scenarioId) {
+		return loadedScenarios.contains(scenarioId);
+	}
+
+	void addLoadedScenario(const std::string& scenarioId) {
+		loadedScenarios.insert(scenarioId);
+	}
+
+	void addToMissingList(const std::string& scenarioId) {
+		std::filesystem::path missingListPath = g_localify_base / "missing_scenarios.json";
+		nlohmann::json missingList;
+
+		if (std::filesystem::exists(missingListPath)) {
+			try {
+				std::ifstream i(missingListPath);
+				i >> missingList;
+			}
+			catch (...) {
+				missingList = nlohmann::json::array();
+			}
+		}
+		else {
+			missingList = nlohmann::json::array();
+		}
+
+		bool found = false;
+		if (missingList.is_array()) {
+			for (const auto& item : missingList) {
+				if (item == scenarioId) {
+					found = true;
+					break;
+				}
+			}
+		}
+
+		if (!found) {
+			missingList.push_back(scenarioId);
+			std::ofstream o(missingListPath);
+			o << missingList.dump(4);
+		}
+	}
+
+	bool appendDumpEntry(const std::string& scenarioId, const std::string& uuid, const std::string& original) {
+		// Try to derive file path from UUID first (e.g. s44_01010105_00_169646 -> s44_01010105)
+		std::string targetFileName = scenarioId;
+		std::string sXX, XXXX;
+		bool standardFormat = false;
+
+		// UUID format check: sXX_XXXXXXXX_...
+		// Minimum length check: s44_01010105 (12 chars)
+		if (uuid.length() >= 12 && uuid[0] == 's' && isdigit(uuid[1]) && isdigit(uuid[2]) && uuid[3] == '_') {
+			// Extract sXX_XXXXXXXX
+			// s44_01010105 -> sXX=s44, XXXX=0101
+			sXX = uuid.substr(0, 3);
+			XXXX = uuid.substr(4, 4);
+			targetFileName = uuid.substr(0, 12); // s44_01010105
+			standardFormat = true;
+		}
+		// Fallback to scenarioId if UUID is non-standard
+		else if (scenarioId.length() >= 8 && scenarioId[0] == 's' && isdigit(scenarioId[1]) && isdigit(scenarioId[2])) {
+			sXX = scenarioId.substr(0, 3);
+			XXXX = scenarioId.substr(4, 4);
+			targetFileName = scenarioId;
+			standardFormat = true;
+		}
+		else {
+			// Fallback for non-standard IDs (e.g. Scenario_Op_01_01)
+			sXX = "misc";
+			XXXX = "others";
+			targetFileName = scenarioId;
+		}
+
+		std::filesystem::path dumpDir = g_localify_base / "timeline_json" / sXX / XXXX;
+		if (!std::filesystem::exists(dumpDir)) {
+			std::filesystem::create_directories(dumpDir);
+		}
+		std::filesystem::path dumpFile = dumpDir / (targetFileName + ".json");
+
+		nlohmann::ordered_json jArray;
+		if (std::filesystem::exists(dumpFile)) {
+			try {
+				std::ifstream i(dumpFile);
+				i >> jArray;
+			}
+			catch (...) {
+				jArray = nlohmann::ordered_json::array();
+			}
+		}
+		else {
+			jArray = nlohmann::ordered_json::array();
+		}
+
+		// Check for duplicate UUID
+		bool exists = false;
+		for (const auto& item : jArray) {
+			if (item.contains("uuid") && item["uuid"] == uuid) {
+				exists = true;
+				break;
+			}
+		}
+
+		if (!exists) {
+			nlohmann::ordered_json entry;
+			entry["uuid"] = uuid;
+			entry["name"] = "Unknown";
+			entry["original"] = original;
+			entry["translation"] = "";
+			entry["config"] = {
+				{"zhSize", 38},
+				{"jpSize", 24},
+				{"lineSpacing", -10},
+				{"dualMode", true}
+			};
+			jArray.push_back(entry);
+
+			std::ofstream o(dumpFile);
+			o << jArray.dump(4);
+			
+			// Mark this scenario as loaded/processed so we don't dump it again in this session
+			// unless F5 is pressed (which reloads loadedScenarios)
+			// Use targetFileName because that's the actual ID we used for the file
+			addLoadedScenario(targetFileName);
+			
 			return true;
 		}
 		return false;
