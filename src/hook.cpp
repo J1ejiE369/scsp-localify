@@ -20,6 +20,7 @@ std::function<void()> g_on_hook_ready;
 std::function<void()> g_on_close;
 std::function<void()> on_hotKey_0;
 bool needPrintStack = false;
+bool g_debugMode = false;
 std::vector<std::pair<std::pair<int, int>, int>> replaceDressResIds{};
 std::map<std::string, CharaParam_t> charaParam{};
 CharaParam_t baseParam(0.0f, 0.0f, 0.0f, 0.0f, 0.0f);
@@ -1748,11 +1749,169 @@ namespace
 		HOOK_CAST_CALL(void, UITextMeshProUGUI_Awake)(_this);
 	}
 
-	HOOK_ORIG_TYPE ScenarioManager_Init_orig;
-	void* ScenarioManager_Init_hook(void* retstr, void* _this, Il2CppString* scrName) {
-		// printf("ScenarioManager_Init: %ls\n%ls\n\n", scrName->start_char, environment_get_stacktrace()->start_char);
-		return HOOK_CAST_CALL(void*, ScenarioManager_Init)(retstr, _this, scrName);
+// Timeline Reflection Helpers
+namespace il2cpp_timeline {
+	static void* TimelineAsset_klass = nullptr;
+	static void* TrackAsset_klass = nullptr;
+	static void* TimelineClip_klass = nullptr;
+	static MethodInfo* TimelineAsset_get_outputTracks = nullptr;
+	static MethodInfo* TrackAsset_get_clips = nullptr;
+	static MethodInfo* TimelineClip_get_asset = nullptr;
+	static MethodInfo* TimelineClip_get_start = nullptr;
+
+	void Init() {
+		if (TimelineAsset_klass) return;
+		TimelineAsset_klass = il2cpp_symbols::get_class("UnityEngine.Timeline.dll", "UnityEngine.Timeline", "TimelineAsset");
+		TrackAsset_klass = il2cpp_symbols::get_class("UnityEngine.Timeline.dll", "UnityEngine.Timeline", "TrackAsset");
+		TimelineClip_klass = il2cpp_symbols::get_class("UnityEngine.Timeline.dll", "UnityEngine.Timeline", "TimelineClip");
+
+		if (TimelineAsset_klass) {
+			TimelineAsset_get_outputTracks = il2cpp_class_get_method_from_name(TimelineAsset_klass, "get_outputTracks", 0);
+		}
+		if (TrackAsset_klass) {
+			TrackAsset_get_clips = il2cpp_class_get_method_from_name(TrackAsset_klass, "get_clips", 0);
+		}
+		if (TimelineClip_klass) {
+			TimelineClip_get_asset = il2cpp_class_get_method_from_name(TimelineClip_klass, "get_asset", 0);
+			TimelineClip_get_start = il2cpp_class_get_method_from_name(TimelineClip_klass, "get_start", 0);
+		}
 	}
+}
+
+void DumpTimeline(void* timelineAsset, const std::string& scenarioId) {
+	if (!timelineAsset) return;
+	il2cpp_timeline::Init();
+	if (!il2cpp_timeline::TimelineAsset_get_outputTracks) return;
+
+	nlohmann::json dumpArray = nlohmann::json::array();
+	std::unordered_set<std::string> dumpedUuids;
+
+	// Iterate Tracks
+	auto tracksEnumerable = il2cpp_runtime_invoke(il2cpp_timeline::TimelineAsset_get_outputTracks, timelineAsset, nullptr, nullptr);
+	
+	il2cpp_symbols::iterate_IEnumerable(tracksEnumerable, [&](void* track) {
+		if (!track) return;
+		
+		// Iterate Clips
+		auto clipsEnumerable = il2cpp_runtime_invoke(il2cpp_timeline::TrackAsset_get_clips, track, nullptr, nullptr);
+		
+		il2cpp_symbols::iterate_IEnumerable(clipsEnumerable, [&](void* clip) {
+			if (!clip) return;
+
+			auto playableAsset = il2cpp_runtime_invoke(il2cpp_timeline::TimelineClip_get_asset, clip, nullptr, nullptr);
+			if (!playableAsset) return;
+
+			// Check if it is DramaSubtitlePlayableAsset
+			static auto DramaSubtitlePlayableAsset_klass = il2cpp_symbols::get_class("PRISM.Interactions.Drama.dll", "PRISM.Interactions.Drama", "DramaSubtitlePlayableAsset");
+			if (!DramaSubtitlePlayableAsset_klass)
+				DramaSubtitlePlayableAsset_klass = il2cpp_symbols::get_class("PRISM.Legacy.dll", "PRISM.Interactions.Drama", "DramaSubtitlePlayableAsset");
+
+			auto assetKlass = il2cpp_symbols::get_class_from_instance(playableAsset);
+			if (assetKlass == DramaSubtitlePlayableAsset_klass) {
+				// Extract Data
+				static auto behaviour_field = il2cpp_class_get_field_from_name(DramaSubtitlePlayableAsset_klass, "behaviour");
+				if (!behaviour_field) behaviour_field = il2cpp_class_get_field_from_name(DramaSubtitlePlayableAsset_klass, "m_Template");
+
+				if (behaviour_field) {
+					auto behaviour = il2cpp_field_get_value_object(behaviour_field, playableAsset);
+					if (behaviour) {
+						static auto behaviour_klass = il2cpp_symbols::get_class_from_instance(behaviour);
+						static auto uniqueId_field = il2cpp_class_get_field_from_name(behaviour_klass, "uniqueId");
+						if (!uniqueId_field) uniqueId_field = il2cpp_class_get_field_from_name(behaviour_klass, "uuid");
+						static auto text_field = il2cpp_class_get_field_from_name(behaviour_klass, "text");
+						if (!text_field) text_field = il2cpp_class_get_field_from_name(behaviour_klass, "_text");
+						static auto speakerName_field = il2cpp_class_get_field_from_name(behaviour_klass, "speakerName");
+
+						if (uniqueId_field && text_field) {
+							Il2CppString* uniqueIdStr = nullptr;
+							il2cpp_field_get_value(behaviour, uniqueId_field, &uniqueIdStr);
+							
+							if (uniqueIdStr) {
+								std::string uuid = uniqueIdStr->ToUtf8String();
+								if (dumpedUuids.contains(uuid)) return; // Avoid duplicates
+								dumpedUuids.insert(uuid);
+
+								Il2CppString* textStr = nullptr;
+								il2cpp_field_get_value(behaviour, text_field, &textStr);
+								std::string text = textStr ? textStr->ToUtf8String() : "";
+
+								std::string speaker = "";
+								if (speakerName_field) {
+									Il2CppString* speakerStr = nullptr;
+									il2cpp_field_get_value(behaviour, speakerName_field, &speakerStr);
+									if (speakerStr) speaker = speakerStr->ToUtf8String();
+								}
+
+								nlohmann::json item;
+								item["uuid"] = uuid;
+								item["original"] = text;
+								item["translation"] = "";
+								if (!speaker.empty()) item["speaker"] = speaker;
+								
+								dumpArray.push_back(item);
+							}
+						}
+					}
+				}
+			}
+		});
+	});
+
+	if (!dumpArray.empty()) {
+		try {
+			std::filesystem::path dumpDir = g_localify_base / "Output_JSON" / "Dump";
+			if (!std::filesystem::exists(dumpDir)) {
+				std::filesystem::create_directories(dumpDir);
+			}
+			std::filesystem::path dumpFile = dumpDir / (scenarioId + ".json");
+			std::ofstream o(dumpFile);
+			o << dumpArray.dump(4);
+			o.close();
+			printf("[Dump] Exported %llu lines to %ls\n", dumpArray.size(), dumpFile.c_str());
+		} catch (std::exception& e) {
+			printf("[Dump] Error writing file: %s\n", e.what());
+		}
+	}
+}
+
+std::string g_currentScenarioId = "";
+
+HOOK_ORIG_TYPE PlayableDirector_Play_orig;
+void PlayableDirector_Play_hook(void* _this, void* asset) {
+	HOOK_CAST_CALL(void, PlayableDirector_Play)(_this, asset);
+
+	if (g_auto_dump_all_json && asset) {
+		// Check if it is a TimelineAsset
+		il2cpp_timeline::Init();
+		auto assetKlass = il2cpp_symbols::get_class_from_instance(asset);
+		if (assetKlass == il2cpp_timeline::TimelineAsset_klass) {
+			// Use captured ID or fallback to asset name
+			std::string dumpId = g_currentScenarioId;
+			if (dumpId.empty()) {
+				// Fallback: Get Asset Name
+				static auto Object_get_name = il2cpp_symbols::get_method_pointer("UnityEngine.CoreModule.dll", "UnityEngine", "Object", "get_name", 0);
+				auto getName = reinterpret_cast<Il2CppString * (*)(void*)>(Object_get_name);
+				if (getName) {
+					auto nameStr = getName(asset);
+					if (nameStr) dumpId = nameStr->ToUtf8String();
+				}
+			}
+
+			if (!dumpId.empty()) {
+				DumpTimeline(asset, dumpId);
+			}
+		}
+	}
+}
+
+HOOK_ORIG_TYPE ScenarioManager_Init_orig;
+void* ScenarioManager_Init_hook(void* retstr, void* _this, Il2CppString* scrName) {
+	if (scrName) {
+		g_currentScenarioId = scrName->ToUtf8String();
+		if (g_debugMode) printf("[ScenarioManager] Init Scenario: %s\n", g_currentScenarioId.c_str());
+	}
+	return HOOK_CAST_CALL(void*, ScenarioManager_Init)(retstr, _this, scrName);
+}
 
 	void* DataFile_GetBytes_hook(Il2CppString* path) {
 		std::wstring pathStr(path->start_char);
@@ -1827,8 +1986,10 @@ namespace
 	void* DepthOfFieldClip_CreatePlayable_hook(void* retstr, void* _this, void* graph, void* go, void* mtd) {
 		// Debug logging to trace execution
 		auto this_klass = il2cpp_symbols::get_class_from_instance(_this);
-		auto klass_name = il2cpp_class_get_name(this_klass);
-		printf("[CreatePlayable_hook] Called for class: %s\n", klass_name);
+		if (g_debugMode) {
+			auto klass_name = il2cpp_class_get_name(this_klass);
+			printf("[CreatePlayable_hook] Called for class: %s\n", klass_name);
+		}
 
 		// Logic for DramaSubtitlePlayableAsset (Merged due to shared address/method folding)
 		static auto DramaSubtitlePlayableAsset_klass = il2cpp_symbols::get_class("PRISM.Interactions.Drama.dll", "PRISM.Interactions.Drama", "DramaSubtitlePlayableAsset");
@@ -1837,7 +1998,7 @@ namespace
 
 		if (DramaSubtitlePlayableAsset_klass) {
 			if (this_klass == DramaSubtitlePlayableAsset_klass) {
-				printf("[CreatePlayable_hook] Matched DramaSubtitlePlayableAsset!\n");
+				if (g_debugMode) printf("[CreatePlayable_hook] Matched DramaSubtitlePlayableAsset!\n");
 				static auto behaviour_field = il2cpp_class_get_field_from_name(DramaSubtitlePlayableAsset_klass, "behaviour");
 				if (!behaviour_field) behaviour_field = il2cpp_class_get_field_from_name(DramaSubtitlePlayableAsset_klass, "m_Template");
 
@@ -1857,10 +2018,10 @@ namespace
 
 							if (uniqueId) {
 								std::string uidStr = uniqueId->ToUtf8String();
-								printf("[CreatePlayable_hook] Found uniqueId: %s\n", uidStr.c_str());
+								if (g_debugMode) printf("[CreatePlayable_hook] Found uniqueId: %s\n", uidStr.c_str());
 								SCLocal::SubtitleData subData;
 								if (SCLocal::getSubtitle(uidStr, subData)) {
-									printf("Translating Drama Subtitle: %s -> %s\n", uidStr.c_str(), subData.translation.c_str());
+									if (g_debugMode) printf("Translating Drama Subtitle: %s -> %s\n", uidStr.c_str(), subData.translation.c_str());
 
 									std::string finalText;
 									if (subData.config.dualMode && !subData.original.empty()) {
@@ -1899,6 +2060,8 @@ namespace
 												std::string zhFormatted = std::format("<line-height=100%><nobr><size={}>{}</size></nobr></line-height>", subData.config.zhSize, zhLine);
 												
 												combinedText += zhFormatted;
+												// Note: No trailing newline after Chinese line to avoid double spacing between pairs.
+												// The loop adds a newline at the start of the next iteration (if i > 0).
 											}
 										}
 										finalText = combinedText;
@@ -1911,16 +2074,18 @@ namespace
 									il2cpp_field_set_value(behaviour, text_field, il2cpp_string_new_utf16((const wchar_t*)wTranslation.c_str(), wTranslation.length()));
 								}
 								else {
-									printf("[CreatePlayable_hook] No translation found for: %s\n", uidStr.c_str());
+									if (g_debugMode) printf("[CreatePlayable_hook] No translation found for: %s\n", uidStr.c_str());
 									
 									// Automatic export of missing text
-									Il2CppString* currText = nullptr;
-									il2cpp_field_get_value(behaviour, text_field, &currText);
-									std::string originalText = "";
-									if (currText) {
-										originalText = currText->ToUtf8String();
+									if (g_auto_dump_all_json) {
+										Il2CppString* currText = nullptr;
+										il2cpp_field_get_value(behaviour, text_field, &currText);
+										std::string originalText = "";
+										if (currText) {
+											originalText = currText->ToUtf8String();
+										}
+										printf("[Missing-Export] UUID: %s | Original: %s\n", uidStr.c_str(), originalText.c_str());
 									}
-									printf("[Missing-Export] UUID: %s | Original: %s\n", uidStr.c_str(), originalText.c_str());
 								}
 							}
 						}
@@ -1956,42 +2121,7 @@ namespace
 
 	HOOK_ORIG_TYPE DramaSubtitlePlayableAsset_CreatePlayable_orig;
 	// Merged into DepthOfFieldClip_CreatePlayable_hook due to method folding/shared address
-	/*
-	void* DramaSubtitlePlayableAsset_CreatePlayable_hook(void* _this, void* graph, void* owner) {
-		static auto klass = il2cpp_symbols::get_class_from_instance(_this);
-		static auto behaviour_field = il2cpp_class_get_field_from_name(klass, "behaviour");
-		if (!behaviour_field) behaviour_field = il2cpp_class_get_field_from_name(klass, "m_Template");
 
-		if (behaviour_field) {
-			auto behaviour = il2cpp_field_get_value_object(behaviour_field, _this);
-			if (behaviour) {
-				static auto behaviour_klass = il2cpp_symbols::get_class_from_instance(behaviour);
-				static auto uniqueId_field = il2cpp_class_get_field_from_name(behaviour_klass, "uniqueId");
-				if (!uniqueId_field) uniqueId_field = il2cpp_class_get_field_from_name(behaviour_klass, "uuid");
-
-				static auto text_field = il2cpp_class_get_field_from_name(behaviour_klass, "text");
-				if (!text_field) text_field = il2cpp_class_get_field_from_name(behaviour_klass, "_text");
-
-				if (uniqueId_field && text_field) {
-					Il2CppString* uniqueId = nullptr;
-					il2cpp_field_get_value(behaviour, uniqueId_field, &uniqueId);
-
-					if (uniqueId) {
-						std::string uidStr = uniqueId->ToUtf8String();
-						std::string translation;
-						if (SCLocal::getSubtitle(uidStr, translation)) {
-							// printf("Translating Drama Subtitle: %s\n", uidStr.c_str());
-							auto wTranslation = utility::conversions::to_utf16string(translation);
-							il2cpp_field_set_value(behaviour, text_field, il2cpp_string_new_utf16((const wchar_t*)wTranslation.c_str(), wTranslation.length()));
-						}
-					}
-				}
-			}
-		}
-
-		return HOOK_CAST_CALL(void*, DramaSubtitlePlayableAsset_CreatePlayable)(_this, graph, owner);
-	}
-	*/
 
 	// obsolete hook removed
 	// HDR Live
@@ -3404,6 +3534,11 @@ namespace
 			);
 		}
 
+		auto PlayableDirector_Play_addr = il2cpp_symbols::get_method_pointer(
+			"UnityEngine.DirectorModule.dll", "UnityEngine.Playables",
+			"PlayableDirector", "Play", 1
+		);
+
 		/*auto PostProcess_DepthOfFieldClip_CreatePlayable_addr = il2cpp_symbols::get_method_pointer(
 			"PRISM.Legacy.dll", "UnityEngine.Rendering.Universal.PostProcess",
 			"DepthOfFieldClip", "CreatePlayable", 2
@@ -3646,6 +3781,7 @@ namespace
 		ADD_HOOK(InvokeMoveNext, "InvokeMoveNext at %p");
 		// ADD_HOOK(Live_SetEnableDepthOfField, "Live_SetEnableDepthOfField at %p");
 		ADD_HOOK(DepthOfFieldClip_CreatePlayable, "DepthOfFieldClip_CreatePlayable at %p");
+		ADD_HOOK(PlayableDirector_Play, "PlayableDirector_Play at %p");
 		// ADD_HOOK(DramaSubtitlePlayableAsset_CreatePlayable, "DramaSubtitlePlayableAsset_CreatePlayable at %p");
 		//ADD_HOOK(PostProcess_DepthOfFieldClip_CreatePlayable, "PostProcess_DepthOfFieldClip_CreatePlayable at %p");
 		// ADD_HOOK(Live_Update, "Live_Update at %p");
