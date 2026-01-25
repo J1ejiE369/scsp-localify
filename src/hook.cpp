@@ -1859,7 +1859,7 @@ void DumpTimeline(void* timelineAsset, const std::string& scenarioId) {
 
 	if (!dumpArray.empty()) {
 		try {
-			std::filesystem::path dumpDir = g_localify_base / "Output_JSON" / "Dump";
+			std::filesystem::path dumpDir = g_localify_base / "timeline_json" / "Dump";
 			if (!std::filesystem::exists(dumpDir)) {
 				std::filesystem::create_directories(dumpDir);
 			}
@@ -1880,6 +1880,8 @@ HOOK_ORIG_TYPE PlayableDirector_Play_orig;
 void PlayableDirector_Play_hook(void* _this, void* asset) {
 	HOOK_CAST_CALL(void, PlayableDirector_Play)(_this, asset);
 
+	// Dump logic disabled as per user request
+	/*
 	if (g_auto_dump_all_json && asset) {
 		// Check if it is a TimelineAsset
 		il2cpp_timeline::Init();
@@ -1902,6 +1904,7 @@ void PlayableDirector_Play_hook(void* _this, void* asset) {
 			}
 		}
 	}
+	*/
 }
 
 HOOK_ORIG_TYPE ScenarioManager_Init_orig;

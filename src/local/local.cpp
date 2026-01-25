@@ -46,7 +46,7 @@ namespace SCLocal {
 	}
 
 	void loadTimelineTrans() {
-		std::filesystem::path timelinePath = g_localify_base / "Output_JSON";
+		std::filesystem::path timelinePath = g_localify_base / "timeline_json";
 
 		if (!std::filesystem::exists(timelinePath) || !std::filesystem::is_directory(timelinePath)) {
 			printf("Timeline translation directory not found: %ls\n", timelinePath.c_str());
@@ -59,9 +59,12 @@ namespace SCLocal {
 
 		try {
 			for (const auto& entry : std::filesystem::recursive_directory_iterator(timelinePath)) {
-				if (entry.is_regular_file() && entry.path().extension() == ".json") {
-					try {
-						std::ifstream file(entry.path());
+				if (entry.is_regular_file()) {
+					auto ext = entry.path().extension().string();
+					std::transform(ext.begin(), ext.end(), ext.begin(), ::tolower);
+					if (ext == ".json") {
+						try {
+							std::ifstream file(entry.path());
 						std::string content((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
 						file.close();
 
@@ -80,15 +83,6 @@ namespace SCLocal {
 										data.translation = item["cn_text"];
 									}
 									
-									// 移除译文中的换行符 - REVERTED for Interleaved Layout experiment
-									// The user wants to try interleaving lines based on newlines.
-									/*
-									if (!data.translation.empty()) {
-										data.translation.erase(std::remove(data.translation.begin(), data.translation.end(), '\n'), data.translation.end());
-										data.translation.erase(std::remove(data.translation.begin(), data.translation.end(), '\r'), data.translation.end());
-									}
-									*/
-
 									// 2. 读取原文
 									if (item.contains("original")) {
 										data.original = item["original"];
@@ -120,6 +114,7 @@ namespace SCLocal {
 					}
 				}
 			}
+		}
 		}
 		catch (std::exception& e) {
 			printf("Error iterating timeline directory: %s\n", e.what());
@@ -177,8 +172,8 @@ namespace SCLocal {
 	}
 
 	/*
-	ע⼸ category: mlStory_MainStoryEpisode, mlMusic_CueSheet, mlMusic_MVScene
-	˽ϷļṹҪ޸⼸ֵ (ų)
+	Category: mlStory_MainStoryEpisode, mlMusic_CueSheet, mlMusic_MVScene
+	Wait for game structure to modify these values (Placeholder)
 	*/
 	bool getLocalifyText(const std::wstring& category, int id, std::wstring* getStr) {
 		const auto categoryS = utility::conversions::to_utf8string(category);
