@@ -571,6 +571,12 @@ namespace
 		if (writeWstr.ends_with(L",]")) {  // 代哥的 Json 就是不一样
 			writeWstr.erase(writeWstr.length() - 2, 1);
 		}
+
+		if (g_dump_static_entries) {
+			std::string processedJson = utility::conversions::to_utf8string(writeWstr);
+			SCLocal::processStaticDump(utility::conversions::to_utf8string(dumpName), processedJson);
+		}
+
 		const auto dumpLocalFilePath = dumpBasePath / SCLocal::getFilePathByName(dumpName, true, dumpBasePath);
 		std::ofstream dumpFile(dumpLocalFilePath, std::ofstream::out);
 		dumpFile << utility::conversions::to_utf8string(writeWstr).c_str();

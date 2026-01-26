@@ -328,6 +328,7 @@ extern bool g_enable_console;
 extern bool g_auto_dump_all_json;
 extern bool g_dump_untrans_lyrics;
 extern bool g_dump_untrans_unlocal;
+extern bool g_dump_static_entries;
 extern std::string g_custom_font_path;
 extern std::filesystem::path g_localify_base;
 extern char hotKey;

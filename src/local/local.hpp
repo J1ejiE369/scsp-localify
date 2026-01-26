@@ -45,4 +45,5 @@ namespace SCLocal {
 	void addLoadedScenario(const std::string& scenarioId);
 	void addToMissingList(const std::string& scenarioId);
 	bool appendDumpEntry(const std::string& scenarioId, const std::string& uuid, const std::string& original);
+	void processStaticDump(const std::string& scenarioId, const std::string& jsonContent);
 }

@@ -444,4 +444,54 @@ namespace SCLocal {
 		}
 		return false;
 	}
+
+	bool hasJapanese(const std::string& str) {
+		for (size_t i = 0; i < str.length(); ++i) {
+			unsigned char c = (unsigned char)str[i];
+			if (c >= 0xE3 && c <= 0xE9) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	void extractStrings(const nlohmann::json& j, std::vector<std::string>& strings) {
+		if (j.is_string()) {
+			strings.push_back(j.get<std::string>());
+		}
+		else if (j.is_array()) {
+			for (const auto& item : j) {
+				extractStrings(item, strings);
+			}
+		}
+		else if (j.is_object()) {
+			for (const auto& item : j.items()) {
+				extractStrings(item.value(), strings);
+			}
+		}
+	}
+
+	void processStaticDump(const std::string& scenarioId, const std::string& jsonContent) {
+		try {
+			auto j = nlohmann::json::parse(jsonContent);
+			std::vector<std::string> strings;
+			extractStrings(j, strings);
+
+			int index = 0;
+			for (const auto& str : strings) {
+				if (hasJapanese(str)) {
+					// Generate a synthetic UUID: scenarioId_static_index
+					// e.g. s44_01010100_static_0001
+					std::string uuid = std::format("{}_static_{:04d}", scenarioId, index++);
+					appendDumpEntry(scenarioId, uuid, str);
+				}
+			}
+			if (index > 0) {
+				printf("[StaticDump] Processed %s, found %d entries.\n", scenarioId.c_str(), index);
+			}
+		}
+		catch (std::exception& e) {
+			printf("[StaticDump] Failed to parse JSON for %s: %s\n", scenarioId.c_str(), e.what());
+		}
+	}
 }

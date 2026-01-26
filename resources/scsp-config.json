@@ -1,26 +1,22 @@
 {
-  "enableConsole": true,
-  "enableVSync": false,
-  "maxFps": 60,
-  "3DResolutionScale": 1.0,
-  "localifyBasePath": "scsp_localify",
-  "hotKey": "u",
+  "enable": true,
+  "enableLogger": true,
+  "dumpStaticEntries": false,
   "dumpUntransLyrics": false,
   "dumpUntransLocal2": false,
-  "autoDumpAllJson": false,
-  "customFontPath": "scsp_localify/scsp-bundle::assets/font/sbtphumminge-regular.ttf",
-  "fontSizeOffset": -3,
-  "blockOutOfFocus": true,
+  "asyncLoad": true,
+  "maxFps": 60,
+  "unlock_PIdol_and_SChara_events": false,
+  "save_costume_changes": false,
+  "override_mv_unit_idols": false,
   "baseFreeCamera": {
     "enable": false,
-    "moveStep": 50,
-    "mouseSpeed": 35
+    "moveStep": 50.0,
+    "mouseSpeed": 35.0
   },
-  "unlockPIdolAndSCharaEvents": false,
-  "startResolution": {
+  "resolution": {
     "w": 1280,
     "h": 720,
     "isFull": false
-  },
-  "key_space_camera_up": 18
+  }
 }
