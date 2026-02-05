@@ -1,5 +1,6 @@
 #include <stdinclude.hpp>
 #include <rapidjson/error/en.h>
+#include <Psapi.h> // For GetModuleHandleEx, GetModuleFileName
 
 namespace debug {
 	void DumpRelationMemoryHex(const void* target, const size_t length)
@@ -98,7 +99,36 @@ void LogException(EXCEPTION_POINTERS* ep) {
 
 	std::cerr << "!! SEH Exception caught !!" << std::endl;
 	std::cerr << "  Code: 0x" << std::hex << code << std::endl;
-	std::cerr << "  Address: " << addr << std::endl;
+	
+    // Identify module source
+    HMODULE hModule = NULL;
+    char moduleName[MAX_PATH] = "Unknown Module";
+    
+    // Get module handle from address
+    if (GetModuleHandleExA(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT, 
+        (LPCSTR)addr, &hModule)) {
+        
+        // Get module filename
+        if (GetModuleFileNameA(hModule, moduleName, sizeof(moduleName))) {
+            // Keep only filename, remove path
+            char* pFileName = strrchr(moduleName, '\\');
+            if (pFileName) {
+                strcpy_s(moduleName, pFileName + 1);
+            }
+        }
+    }
+
+    std::cerr << "  Address: " << addr << " [" << moduleName << "]" << std::endl;
+
+    // Simple classification
+    std::string modStr = moduleName;
+    if (modStr == "scsp-localify.dll") {
+         std::cerr << "  Source: [PLUGIN ERROR] Crash originated from our plugin code." << std::endl;
+    } else if (modStr == "GameAssembly.dll" || modStr == "UnityPlayer.dll") {
+         std::cerr << "  Source: [GAME ERROR] Crash originated from Unity/Game logic." << std::endl;
+    } else {
+         std::cerr << "  Source: [SYSTEM/OTHER] Crash originated from system or other libraries." << std::endl;
+    }
 
 	switch (code) {
 	case EXCEPTION_ACCESS_VIOLATION:
@@ -117,11 +147,6 @@ void LogException(EXCEPTION_POINTERS* ep) {
 
 	debug::DumpRelationMemoryHex((const void*)((uintptr_t)addr - 0x20));
 	debug::DumpRegisters();
-}
-
-LONG WINAPI seh_filter(EXCEPTION_POINTERS* ep) {
-	LogException(ep);
-	return EXCEPTION_EXECUTE_HANDLER;
 }
 
 LONG WINAPI GlobalCrashHandler(EXCEPTION_POINTERS* ep) {
@@ -145,29 +170,7 @@ LONG WINAPI GlobalCrashHandler(EXCEPTION_POINTERS* ep) {
 	return EXCEPTION_CONTINUE_SEARCH;
 }
 
-LONG WINAPI VectoredCrashHandler(PEXCEPTION_POINTERS ep) {
-	DWORD code = ep->ExceptionRecord->ExceptionCode;
-
-	// 忽略 C++ 异常和调试器断点
-	if (code == 0xE06D7363 || code == 0x406D1388 || code == EXCEPTION_BREAKPOINT) {
-		return EXCEPTION_CONTINUE_SEARCH;
-	}
-
-	// 仅处理致命异常
-	if (code == EXCEPTION_ACCESS_VIOLATION ||
-		code == EXCEPTION_ILLEGAL_INSTRUCTION ||
-		code == EXCEPTION_PRIV_INSTRUCTION ||
-		code == EXCEPTION_INT_DIVIDE_BY_ZERO ||
-		code == EXCEPTION_STACK_OVERFLOW) {
-		
-		return GlobalCrashHandler(ep);
-	}
-
-	return EXCEPTION_CONTINUE_SEARCH;
-}
-
 void InstallCrashHandler() {
-	AddVectoredExceptionHandler(1, VectoredCrashHandler);
 	SetUnhandledExceptionFilter(GlobalCrashHandler);
 }
 

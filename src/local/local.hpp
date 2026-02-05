@@ -8,7 +8,7 @@
 
 
 namespace SCLocal {
-	// 定义 V2 数据结构
+	// 定义josn数据结构
 	struct SubtitleConfig
 	{
 		int zhSize = 38;
@@ -21,16 +21,13 @@ namespace SCLocal {
 
 	struct SubtitleData
 	{
-		std::string original;    // 日文原文
-		std::string translation; // 中文译文
-		// Speaker Info (V3)
-		std::string name;        // displayTalkerName (GUI显示名)
-		std::string internalName;// talkerName (内部标识名)
-		int characterId = 0;     // mstCharacterInfoId (角色ID)
-		// Voice Info (V3)
-		std::string cueName;     // 语音文件名
-
-		SubtitleConfig config;   // 样式配置
+		std::string original;
+		std::string translation;
+		std::string name;
+		std::string internalName;
+		int characterId = 0;
+		std::string cueName;
+		SubtitleConfig config;
 	};
 
 	void loadLocalTrans();
@@ -41,7 +38,7 @@ namespace SCLocal {
 	std::string getLyricsTrans(const std::wstring& orig);
 	bool getGameUnlocalTrans(const std::wstring& orig, std::string* newStr);
 
-		// 新的接口：返回完整的 SubtitleData 对象
+
 		bool getSubtitle(const std::string& key, SubtitleData& outData);
 
 		void SetDumpingScenarioId(const std::string& scenarioId);

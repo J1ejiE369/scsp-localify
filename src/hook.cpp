@@ -22,7 +22,8 @@ std::function<void()> on_hotKey_0;
 bool needPrintStack = false;
 bool g_debugMode = true;
 // Dump Module Globals
-bool g_isDumping = true; // Auto-dump by default for development
+bool g_isDumping = true;
+//开启则启动自动dump
 std::string g_dumpingScenarioId = "";
 std::set<std::string> g_dumpedUUIDs;
 
@@ -1818,123 +1819,15 @@ namespace
 	HOOK_ORIG_TYPE DepthOfFieldClip_CreatePlayable_orig;
 	HOOK_ORIG_TYPE DramaSubtitlePlayableAsset_CreatePlayable_orig;
 
-	// Timeline Reflection Helpers
-	namespace il2cpp_timeline {
-		static void* TimelineAsset_klass = nullptr;
-		static void* TrackAsset_klass = nullptr;
-		static void* TimelineClip_klass = nullptr;
-		static MethodInfo* TimelineAsset_get_rootTrackCount = nullptr;
-		static MethodInfo* TimelineAsset_GetRootTrack = nullptr;
-		static MethodInfo* TrackAsset_get_clips = nullptr;
-		static MethodInfo* TimelineClip_get_asset = nullptr;
-		static MethodInfo* TimelineClip_get_start = nullptr;
-
-		void Init() {
-			if (TimelineAsset_klass) return;
-			TimelineAsset_klass = il2cpp_symbols::get_class("UnityEngine.Timeline.dll", "UnityEngine.Timeline", "TimelineAsset");
-			TrackAsset_klass = il2cpp_symbols::get_class("UnityEngine.Timeline.dll", "UnityEngine.Timeline", "TrackAsset");
-			TimelineClip_klass = il2cpp_symbols::get_class("UnityEngine.Timeline.dll", "UnityEngine.Timeline", "TimelineClip");
-
-			if (TimelineAsset_klass) {
-				TimelineAsset_get_rootTrackCount = il2cpp_class_get_method_from_name(TimelineAsset_klass, "get_rootTrackCount", 0);
-				TimelineAsset_GetRootTrack = il2cpp_class_get_method_from_name(TimelineAsset_klass, "GetRootTrack", 1);
-			}
-			if (TrackAsset_klass) {
-				TrackAsset_get_clips = il2cpp_class_get_method_from_name(TrackAsset_klass, "get_clips", 0);
-			}
-			if (TimelineClip_klass) {
-				TimelineClip_get_asset = il2cpp_class_get_method_from_name(TimelineClip_klass, "get_asset", 0);
-				TimelineClip_get_start = il2cpp_class_get_method_from_name(TimelineClip_klass, "get_start", 0);
-			}
-		}
-	}
-
+	/*
+	// InjectTimelineTranslation is redundant as we hook CreatePlayable.
+	// Kept for reference but disabled.
 	void InjectTimelineTranslation(void* timelineAsset) {
-		if (!timelineAsset) return;
-		il2cpp_timeline::Init();
-		
-		// Check required methods once
-		if (!il2cpp_timeline::TimelineAsset_get_rootTrackCount || 
-			!il2cpp_timeline::TimelineAsset_GetRootTrack ||
-			!il2cpp_timeline::TrackAsset_get_clips ||
-			!il2cpp_timeline::TimelineClip_get_asset) return;
-
-		// Iterate Root Tracks using Index
-		int rootTrackCount = 0;
-		auto rootTrackCountObj = il2cpp_runtime_invoke(il2cpp_timeline::TimelineAsset_get_rootTrackCount, timelineAsset, nullptr, nullptr);
-		if (rootTrackCountObj) {
-			rootTrackCount = *reinterpret_cast<int*>(il2cpp_object_unbox((Il2CppObject*)rootTrackCountObj));
-		}
-
-		for (int i = 0; i < rootTrackCount; i++) {
-			void* args[] = { &i };
-			auto track = il2cpp_runtime_invoke(il2cpp_timeline::TimelineAsset_GetRootTrack, timelineAsset, args, nullptr);
-			if (!track) continue;
-
-			// Iterate Clips
-			auto clipsEnumerable = il2cpp_runtime_invoke(il2cpp_timeline::TrackAsset_get_clips, track, nullptr, nullptr);
-			
-			il2cpp_symbols::iterate_IEnumerable(clipsEnumerable, [&](void* clip) {
-				if (!clip) return;
-
-				auto playableAsset = il2cpp_runtime_invoke(il2cpp_timeline::TimelineClip_get_asset, clip, nullptr, nullptr);
-				if (!playableAsset) return;
-
-				// Check if it is DramaSubtitlePlayableAsset
-				static auto DramaSubtitlePlayableAsset_klass = il2cpp_symbols::get_class("PRISM.Interactions.Drama.dll", "PRISM.Interactions.Drama", "DramaSubtitlePlayableAsset");
-				if (!DramaSubtitlePlayableAsset_klass)
-					DramaSubtitlePlayableAsset_klass = il2cpp_symbols::get_class("PRISM.Legacy.dll", "PRISM.Interactions.Drama", "DramaSubtitlePlayableAsset");
-
-				auto assetKlass = il2cpp_symbols::get_class_from_instance(playableAsset);
-				if (assetKlass == DramaSubtitlePlayableAsset_klass) {
-					// Extract Data
-					static auto behaviour_field = il2cpp_class_get_field_from_name(DramaSubtitlePlayableAsset_klass, "behaviour");
-					if (!behaviour_field) behaviour_field = il2cpp_class_get_field_from_name(DramaSubtitlePlayableAsset_klass, "m_Template");
-
-					if (behaviour_field) {
-						auto behaviour = il2cpp_field_get_value_object(behaviour_field, playableAsset);
-						if (behaviour) {
-							static auto behaviour_klass = il2cpp_symbols::get_class_from_instance(behaviour);
-							static auto uniqueId_field = il2cpp_class_get_field_from_name(behaviour_klass, "uniqueId");
-							if (!uniqueId_field) uniqueId_field = il2cpp_class_get_field_from_name(behaviour_klass, "uuid");
-							static auto text_field = il2cpp_class_get_field_from_name(behaviour_klass, "text");
-							if (!text_field) text_field = il2cpp_class_get_field_from_name(behaviour_klass, "_text");
-
-							if (uniqueId_field && text_field) {
-								Il2CppString* uniqueIdStr = nullptr;
-								il2cpp_field_get_value(behaviour, uniqueId_field, &uniqueIdStr);
-								
-								if (uniqueIdStr) {
-									std::string uidStr = uniqueIdStr->ToUtf8String();
-									if (g_debugMode) printf("[InjectTranslation] Found uniqueId: %s\n", uidStr.c_str());
-									
-									SCLocal::SubtitleData subData;
-									if (SCLocal::getSubtitle(uidStr, subData)) {
-										if (g_debugMode) printf("Translating Drama Subtitle: %s -> %s\n", uidStr.c_str(), subData.translation.c_str());
-
-                                            std::string finalText;
-                                            if (subData.config.dualMode && !subData.original.empty()) {
-                                                std::string combinedText = SCLocal::formatSubtitle(subData);
-                                                finalText = combinedText;
-                                            } else {
-                                                finalText = subData.translation;
-                                            }
-
-								auto wTranslation = utility::conversions::to_utf16string(finalText);
-								auto str = il2cpp_string_new_utf16((const wchar_t*)wTranslation.c_str(), wTranslation.length());
-								
-								// Use project style write_field
-								il2cpp_symbols::write_field(behaviour, text_field, str);
-							}
-						}
-					}
-				}
-			}
-		}
-	});
-		}
+		// ... (Implementation commented out) ...
 	}
-
+	*/
+	
+	// Hook Logic Functions
 	void TryApplyTranslation(void* _this) {
 		// 1. 查找关键类符号 (只查找一次)
 		static auto DramaSubtitlePlayableAsset_klass = il2cpp_symbols::get_class("PRISM.Interactions.Drama.dll", "PRISM.Interactions.Drama", "DramaSubtitlePlayableAsset");
@@ -2356,7 +2249,7 @@ namespace
 
 
 	void ModifyOnStageIdols(void* onStageIdols) {
-		__try {
+		// __try { // Removed SEH
 			auto idolsLength = il2cpp_array_length(onStageIdols);
 			if (g_save_and_replace_costume_changes) {
 				for (int i = 0; i < idolsLength; i++) {
@@ -2386,10 +2279,10 @@ namespace
 					}
 				}
 			}
-		}
-		__except (seh_filter(GetExceptionInformation())) {
-			printf("SEH exception detected in `ModifyOnStageIdols`.\n");
-		}
+		// }
+		// __except (seh_filter(GetExceptionInformation())) { // Removed SEH
+		// 	printf("SEH exception detected in `ModifyOnStageIdols`.\n");
+		// }
 	}
 
 	HOOK_ORIG_TYPE LiveMVStartData_ctor_orig;
@@ -2730,7 +2623,7 @@ namespace
 		bool ret = true;
 		int currentSlot = 0;
 		il2cpp_symbols::iterate_IEnumerable(idols, [&](void* idol) {
-			__try {
+			// __try { // Removed SEH
 				const auto idol_klass = il2cpp_symbols::get_class_from_instance(idol);
 				const auto characterId_field = il2cpp_class_get_field_from_name(idol_klass, "<CharacterId>k__BackingField");
 				//const auto characterId = il2cpp_symbols::read_field<int>(idol, characterId_field);
@@ -2748,10 +2641,10 @@ namespace
 					}
 				}
 				currentSlot++;
-			}
-			__except (seh_filter(GetExceptionInformation())) {
-				printf("SEH exception detected in `checkMusicDataSatisfy|iterate_IEnumerable`.\n");
-			}
+			// }
+			// __except (seh_filter(GetExceptionInformation())) { // Removed SEH
+			// 	printf("SEH exception detected in `checkMusicDataSatisfy|iterate_IEnumerable`.\n");
+			// }
 			});
 
 		return ret;
@@ -3043,7 +2936,7 @@ namespace
 		static managed::UnitIdol* (*func_CostumeChangeViewModel_GetPreviewUnitIdol)(void* _this, void* mtd);
 
 		if (g_save_and_replace_costume_changes) {
-			__try {
+			// __try { // Removed SEH
 				if (mtd_CostumeChangeViewModel_GetPreviewUnitIdol == nullptr) {
 					mtd_CostumeChangeViewModel_GetPreviewUnitIdol = il2cpp_class_get_method_from_name(klass, "GetPreviewUnitIdol", 0);
 					func_CostumeChangeViewModel_GetPreviewUnitIdol = reinterpret_cast<managed::UnitIdol * (*)(void* _this, void* mtd)>(mtd_CostumeChangeViewModel_GetPreviewUnitIdol->methodPointer);
@@ -3060,10 +2953,10 @@ namespace
 					savedCostumes[data.CharaId] = data;
 
 				lastSavedCostume = data;
-			}
-			__except (seh_filter(GetExceptionInformation())) {
-				printf("SEH exception detected in 'CostumeChangeView_Reload_hook'.\n");
-			}
+			// }
+			// __except (seh_filter(GetExceptionInformation())) { // Removed SEH
+			// 	printf("SEH exception detected in 'CostumeChangeView_Reload_hook'.\n");
+			// }
 		}
 	}
 

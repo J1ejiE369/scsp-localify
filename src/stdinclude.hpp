@@ -78,9 +78,9 @@
 
 #define PRINT(var) std::cout << #var << " = " << var << std::endl;
 #define PRINT_ONCE(_txt_var_) static bool __print_once_##_txt_var_ = [] { PRINT(_txt_var_); return true; }();
-LONG WINAPI seh_filter(EXCEPTION_POINTERS* ep);
+// LONG WINAPI seh_filter(EXCEPTION_POINTERS* ep); // Removed
 void InstallCrashHandler();
-#define __EXCEPT(strContext) __except (seh_filter(GetExceptionInformation())) { std::cout << "SEH exception detected in '" << strContext << "'.\n"; }
+// #define __EXCEPT(strContext) __except (seh_filter(GetExceptionInformation())) { std::cout << "SEH exception detected in '" << strContext << "'.\n"; } // Removed
 
 
 namespace debug {

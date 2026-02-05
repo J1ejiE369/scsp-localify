@@ -1,5 +1,4 @@
 #include <stdinclude.hpp>
-#include "local.hpp"
 
 namespace SCLocal {
 	namespace {
