@@ -27,6 +27,7 @@ bool g_enable_console = true;
 bool g_auto_dump_all_json = false;
 bool g_dump_untrans_lyrics = false;
 bool g_dump_untrans_unlocal = false;
+bool g_dual_mode = true;
 int g_max_fps = 60;
 int g_vsync_count = 0;
 float g_3d_resolution_scale = 1.0f;
@@ -202,6 +203,9 @@ namespace
 			if (document.HasMember("dumpUntransLocal2")) {
 				g_dump_untrans_unlocal = document["dumpUntransLocal2"].GetBool();
 			}
+			if (document.HasMember("dualMode")) {
+				g_dual_mode = document["dualMode"].GetBool();
+			}
 			if (document.HasMember("extraAssetBundlePath")) {
 				logs.push_back("[WARNING] Option `extraAssetBundlePath` is obsolete. Use `asset_bundle_path::asset_path` to specify an asset.\n");
 			}
@@ -350,6 +354,8 @@ int __stdcall DllMain(HINSTANCE dllModule, DWORD reason, LPVOID)
 			{
 				start_console();
 			}
+
+			InstallCrashHandler();
 
 			init_hook();
 

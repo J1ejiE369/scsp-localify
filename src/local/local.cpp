@@ -1,11 +1,12 @@
 #include <stdinclude.hpp>
-
+#include "local.hpp"
 
 namespace SCLocal {
 	namespace {
 		std::unordered_map<std::string, std::unordered_map<int, std::string>> localTrans{};
 		std::unordered_map<std::string, std::string> lrcTrans{};
-		std::unordered_map<std::string, std::string> unLocalTrans{};
+		std::unordered_map<std::string, std::string> unLocalTrans_Legacy{};
+		std::unordered_map<std::string, SubtitleData> unLocalTrans{};
 	}
 
 	void loadGenericTrans(const char* fileName, std::unordered_map<std::string, std::string>& transDict) {
@@ -34,12 +35,101 @@ namespace SCLocal {
 		loadGenericTrans("lyrics.json", lrcTrans);
 	}
 	void loadUnlocalTrans() {
-		loadGenericTrans("local2.json", unLocalTrans);
+		loadGenericTrans("local2.json", unLocalTrans_Legacy);
+	}
+
+	// Helper: Parse SubtitleData from JSON
+	SubtitleData parseSubtitleData(const nlohmann::json& item) {
+		SubtitleData data;
+
+		// Translation: try 'translation' then 'cn_text'
+		if (item.contains("translation")) data.translation = item["translation"];
+		else if (item.contains("cn_text")) data.translation = item["cn_text"];
+
+		// Original: try 'original' then 'jp_text'
+		if (item.contains("original")) data.original = item["original"];
+		else if (item.contains("jp_text")) data.original = item["jp_text"];
+
+		// Config
+		if (item.contains("config")) {
+			const auto& cfg = item["config"];
+			data.config.zhSize = cfg.value("zhSize", 38);
+			data.config.jpSize = cfg.value("jpSize", 24);
+			data.config.lineSpacing = cfg.value("lineSpacing", -10);
+			data.config.zhLineHeight = cfg.value("zhLineHeight", 100);
+			data.config.jpLineHeight = cfg.value("jpLineHeight", 100);
+			data.config.dualMode = cfg.value("dualMode", g_dual_mode);
+		}
+		else {
+			data.config.dualMode = g_dual_mode;
+		}
+		return data;
+	}
+
+	// Helper: Load single file
+	int loadSingleTimelineFile(const std::filesystem::path& path) {
+		int count = 0;
+		try {
+			std::ifstream file(path);
+			nlohmann::json jsonArray;
+			file >> jsonArray;
+
+			if (jsonArray.is_array()) {
+				for (const auto& item : jsonArray) {
+					if (item.contains("uuid")) {
+						std::string uuid = item["uuid"];
+						if (!uuid.empty()) {
+							SubtitleData data = parseSubtitleData(item);
+							if (!data.translation.empty()) {
+								unLocalTrans[uuid] = data;
+								count++;
+							}
+						}
+					}
+				}
+			}
+		}
+		catch (std::exception& e) {
+			printf("Error loading timeline file %ls: %s\n", path.c_str(), e.what());
+		}
+		return count;
+	}
+
+	void loadTimelineTrans() {
+		std::filesystem::path timelinePath = g_localify_base / "translate_data";
+
+		if (!std::filesystem::exists(timelinePath) || !std::filesystem::is_directory(timelinePath)) {
+			printf("Timeline translation directory not found: %ls\n", timelinePath.c_str());
+			return;
+		}
+
+		printf("Loading timeline translations (V2) from %ls...\n", timelinePath.c_str());
+		int fileCount = 0;
+		int itemCount = 0;
+
+		try {
+			for (const auto& entry : std::filesystem::recursive_directory_iterator(timelinePath)) {
+				if (entry.is_regular_file()) {
+					auto ext = entry.path().extension().string();
+					std::transform(ext.begin(), ext.end(), ext.begin(), ::tolower);
+					if (ext == ".json") {
+						itemCount += loadSingleTimelineFile(entry.path());
+						fileCount++;
+					}
+				}
+			}
+		}
+		catch (std::exception& e) {
+			printf("Error iterating timeline directory: %s\n", e.what());
+		}
+
+		printf("Loaded %d timeline files with %d entries.\n", fileCount, itemCount);
 	}
 
 	void loadLocalTrans() {
 		loadLrcTrans();
 		loadUnlocalTrans();
+		loadTimelineTrans();
 		localTrans.clear();
 		printf("Loading localify.json...\n");
 		int totalItemCount = 0;
@@ -59,7 +149,7 @@ namespace SCLocal {
 					const auto& subIdStr = v.key();
 					const auto subId = std::stoi(subIdStr);
 					std::string localText = v.value();
-					if (auto it = unLocalTrans.find(localText); it != unLocalTrans.end()) {
+					if (auto it = unLocalTrans_Legacy.find(localText); it != unLocalTrans_Legacy.end()) {
 						localText = it->second;
 					}
 					localTrans[key][subId] = localText;
@@ -84,10 +174,6 @@ namespace SCLocal {
 		return false;
 	}
 
-	/*
-	注意几个特殊的 category: mlStory_MainStoryEpisode, mlMusic_CueSheet, mlMusic_MVScene
-	除非了解游戏文件结构，否则不要修改这几个的值 (不排除还有其他的)
-	*/
 	bool getLocalifyText(const std::wstring& category, int id, std::wstring* getStr) {
 		const auto categoryS = utility::conversions::to_utf8string(category);
 		std::string resultS = "";
@@ -110,6 +196,18 @@ namespace SCLocal {
 		}
 		parts.push_back(text.substr(start));
 		return parts;
+	}
+
+	std::vector<std::string> splitString(const std::string& str) {
+		std::vector<std::string> lines;
+		std::string::size_type pos = 0;
+		std::string::size_type prev = 0;
+		while ((pos = str.find('\n', prev)) != std::string::npos) {
+			lines.push_back(str.substr(prev, pos - prev));
+			prev = pos + 1;
+		}
+		lines.push_back(str.substr(prev));
+		return lines;
 	}
 
 	std::filesystem::path splitFatherDirectoryByUnderline(const std::wstring& name) {
@@ -175,7 +273,6 @@ namespace SCLocal {
 		catch (std::exception& e) {
 			printf("Dump text to %s error: %s\n", fileName, e.what());
 		}
-
 	}
 
 	std::string replaceAll(const std::string& str, const std::string& oldStr, const std::string& newStr) {
@@ -189,7 +286,6 @@ namespace SCLocal {
 	}
 
 	std::string getLyricsTrans(const std::wstring& orig) {
-		// const auto lrcStr = replaceAll(replaceAll(utility::conversions::to_utf8string(orig), "\n", "\\n"), "\r", "\\r");
 		const auto lrcStr = utility::conversions::to_utf8string(orig);
 		if (auto iter = lrcTrans.find(lrcStr); iter != lrcTrans.end()) {
 			return iter->second;
@@ -203,9 +299,8 @@ namespace SCLocal {
 	}
 
 	bool getGameUnlocalTrans(const std::wstring& orig, std::string* newStr) {
-		// const auto origStr = replaceAll(replaceAll(utility::conversions::to_utf8string(orig), "\n", "\\n"), "\r", "\\r");
 		const auto origStr = utility::conversions::to_utf8string(orig);
-		if (auto iter = unLocalTrans.find(origStr); iter != unLocalTrans.end()) {
+		if (auto iter = unLocalTrans_Legacy.find(origStr); iter != unLocalTrans_Legacy.end()) {
 			*newStr = iter->second;
 			return true;
 		}
@@ -217,4 +312,284 @@ namespace SCLocal {
 		return false;
 	}
 
+	bool getSubtitle(const std::string& key, SubtitleData& outData) {
+		if (auto iter = unLocalTrans.find(key); iter != unLocalTrans.end()) {
+			outData = iter->second;
+			return true;
+		}
+		return false;
+	}
+
+	bool isScenarioTranslated(const std::string& scenarioId) {
+		// Check if scenario file exists by parsing ID
+		auto firstUnderscore = scenarioId.find('_');
+		if (firstUnderscore == std::string::npos) return false;
+
+		std::string prefix = scenarioId.substr(0, firstUnderscore);
+		std::string idBody = scenarioId.substr(firstUnderscore + 1);
+
+		if (idBody.length() < 4) return false;
+		std::string subFolder = idBody.substr(0, 4);
+
+		std::filesystem::path filePath = g_localify_base / "translate_data" / prefix / subFolder / (scenarioId + ".json");
+		return std::filesystem::exists(filePath);
+	}
+
+	void addToMissingList(const std::string& scenarioId) {
+		// Cache missing IDs to avoid frequent file I/O
+		static std::set<std::string> missingCache;
+		if (missingCache.contains(scenarioId)) return;
+
+		std::filesystem::path listPath = g_localify_base / "missing_scenarios.json";
+		nlohmann::json jsonList;
+
+		if (std::filesystem::exists(listPath)) {
+			try {
+				std::ifstream file(listPath);
+				jsonList = nlohmann::json::parse(file);
+			} catch (...) {
+				jsonList = nlohmann::json::array();
+			}
+		} else {
+			jsonList = nlohmann::json::array();
+		}
+
+		// Sync cache with file content
+		bool exists = false;
+		for (const auto& item : jsonList) {
+			if (item.is_string()) {
+				std::string s = item.get<std::string>();
+				missingCache.insert(s);
+				if (s == scenarioId) exists = true;
+			}
+		}
+
+		if (!exists) {
+			jsonList.push_back(scenarioId);
+			missingCache.insert(scenarioId);
+			
+			std::ofstream file(listPath);
+			file << jsonList.dump(4);
+			file.close();
+			printf("[Dump] Added %s to missing list.\n", scenarioId.c_str());
+		}
+	}
+
+	std::string formatSubtitle(const SubtitleData& data) {
+		if (data.config.dualMode && !data.original.empty()) {
+			auto zhLines = splitString(data.translation);
+			auto jpLines = splitString(data.original);
+
+			std::string combinedText;
+			combinedText.reserve(data.translation.size() + data.original.size() + 100);
+
+			// 1. Format Original Text Block
+			for (size_t i = 0; i < jpLines.size(); i++) {
+				if (i > 0) combinedText += "\n";
+
+				std::string jpLine = jpLines[i];
+				jpLine.erase(std::remove(jpLine.begin(), jpLine.end(), '\r'), jpLine.end());
+
+				combinedText += std::format("<line-height={}%><nobr><size={}><color=#CCCCCC>{}</color></size></nobr></line-height>",
+					data.config.jpLineHeight, data.config.jpSize, jpLine);
+			}
+
+			// 2. Format Translation Text Block
+			for (size_t i = 0; i < zhLines.size(); i++) {
+				if (i > 0 || !jpLines.empty()) combinedText += "\n";
+
+				std::string zhLine = zhLines[i];
+				zhLine.erase(std::remove(zhLine.begin(), zhLine.end(), '\r'), zhLine.end());
+
+				// Apply line spacing as negative offset for the first line
+				float currentVOffset = (i == 0) ? -((float)data.config.lineSpacing / 100.0f) : 0.0f;
+
+				combinedText += std::format("<voffset={}em><line-height={}%><nobr><size={}>{}</size></nobr></line-height></voffset>",
+					currentVOffset, data.config.zhLineHeight, data.config.zhSize, zhLine);
+			}
+
+			return combinedText;
+		}
+		return data.translation;
+	}
+
+	bool appendDumpEntry(
+		const std::string& scenarioId,
+		const std::string& uuid,
+		const std::string& original,
+		const std::string& name,
+		const std::string& internalName,
+		int characterId,
+		const std::string& cueName
+	) {
+		if (uuid.empty()) return false;
+
+		// Determine dump path based on UUID format
+		std::string dumpFileName = "dump_unknown";
+		std::filesystem::path dumpPath = g_localify_base / "translate_data" / "misc";
+
+		// Standard format: sXX_XXXX...
+		if (uuid.length() >= 8 && uuid[0] == 's' && uuid[3] == '_') {
+			std::string prefix = uuid.substr(0, 3);
+			size_t secondUnderscore = uuid.find('_', 4);
+			if (secondUnderscore != std::string::npos) {
+				std::string index = uuid.substr(4, secondUnderscore - 4);
+				if (index.length() == 4) {
+					dumpPath = g_localify_base / "translate_data" / prefix / index;
+					
+					// Handle special multi-section cases like s42
+					if (prefix == "s42" && uuid.length() >= 15) {
+						dumpFileName = uuid.substr(0, 15);
+					} else {
+						dumpFileName = uuid.substr(0, secondUnderscore + 5); // sXX_XXXXXX
+						if (dumpFileName.length() != 12) dumpFileName = uuid.substr(0, 12);
+					}
+				}
+			}
+		}
+		
+		if (dumpFileName == "dump_unknown" && !scenarioId.empty()) {
+			dumpFileName = scenarioId;
+		}
+
+		std::filesystem::create_directories(dumpPath);
+		std::filesystem::path filePath = dumpPath / (dumpFileName + ".json");
+
+		nlohmann::ordered_json jsonArray;
+		if (std::filesystem::exists(filePath)) {
+			try {
+				std::ifstream file(filePath);
+				jsonArray = nlohmann::ordered_json::parse(file);
+			} catch (std::exception& e) {
+				printf("[Dump] Failed to parse %ls: %s\n", filePath.c_str(), e.what());
+				return false;
+			}
+		} else {
+			jsonArray = nlohmann::ordered_json::array();
+		}
+
+		bool modified = false;
+		bool found = false;
+
+		for (auto& item : jsonArray) {
+			if (item.value("uuid", "") == uuid) {
+				found = true;
+				
+				// Helper to update field if changed
+				auto updateIfChanged = [&](nlohmann::ordered_json& obj, const char* key, const auto& val) {
+					if (!obj.contains(key) || obj[key] != val) {
+						obj[key] = val;
+						modified = true;
+					}
+				};
+
+				updateIfChanged(item, "original", original);
+
+				// Ensure structure exists
+				if (!item.contains("speaker")) item["speaker"] = nlohmann::ordered_json::object();
+				if (!item.contains("voice")) item["voice"] = nlohmann::ordered_json::object();
+				if (!item.contains("config")) {
+					item["config"] = {
+						{"zhSize", 38}, {"jpSize", 24}, {"lineSpacing", -10},
+						{"zhLineHeight", 100}, {"jpLineHeight", 100}, {"dualMode", g_dual_mode}
+					};
+					modified = true;
+				}
+
+				updateIfChanged(item["speaker"], "name", name);
+				updateIfChanged(item["speaker"], "internalName", internalName);
+				updateIfChanged(item["speaker"], "id", characterId);
+				updateIfChanged(item["voice"], "cueName", cueName);
+				
+				// Cleanup legacy fields
+				if (item.contains("name")) { item.erase("name"); modified = true; }
+
+				break;
+			}
+		}
+
+		if (!found) {
+			nlohmann::ordered_json newItem;
+			newItem["uuid"] = uuid;
+			newItem["speaker"] = {
+				{"name", name},
+				{"internalName", internalName},
+				{"id", characterId}
+			};
+			newItem["voice"] = { {"cueName", cueName} };
+			newItem["original"] = original;
+			newItem["translation"] = "";
+			newItem["config"] = {
+				{"zhSize", 38}, {"jpSize", 24}, {"lineSpacing", -10},
+				{"zhLineHeight", 100}, {"jpLineHeight", 100}, {"dualMode", g_dual_mode}
+			};
+			
+			jsonArray.push_back(newItem);
+			modified = true;
+		}
+
+		if (modified) {
+			try {
+				std::ofstream outFile(filePath);
+				outFile << jsonArray.dump(2);
+				return true;
+			} catch (std::exception& e) {
+				printf("[Dump] Failed to write %s: %s\n", filePath.string().c_str(), e.what());
+			}
+		}
+
+		return modified;
+	}
+
+	std::mutex g_dumpMutex;
+	std::mutex g_scenarioIdMutex;
+
+	void SetDumpingScenarioId(const std::string& scenarioId) {
+		std::lock_guard<std::mutex> lock(g_scenarioIdMutex);
+		g_dumpingScenarioId = scenarioId;
+	}
+
+	std::string GetDumpingScenarioId() {
+		std::lock_guard<std::mutex> lock(g_scenarioIdMutex);
+		return g_dumpingScenarioId;
+	}
+
+	bool tryDumpSubtitle(
+		const std::string& scenarioId,
+		const std::string& uuid,
+		const std::string& originalText,
+		const std::string& speakerName,
+		const std::string& internalName,
+		int characterId,
+		const std::string& cueName
+	) {
+		if (!g_isDumping) return false;
+
+		std::lock_guard<std::mutex> lock(g_dumpMutex);
+
+		std::string currentGlobalId = GetDumpingScenarioId();
+		
+		// Only dump if the current scenario matches the global target
+		if (!currentGlobalId.empty() && scenarioId == currentGlobalId) {
+			if (!g_dumpedUUIDs.contains(uuid)) {
+				g_dumpedUUIDs.insert(uuid);
+
+				bool dumped = appendDumpEntry(
+					currentGlobalId,
+					uuid,
+					originalText,
+					speakerName,
+					internalName,
+					characterId,
+					cueName
+				);
+
+				if (dumped && g_debugMode) {
+					printf("[Dump] Synced/Dumped %s (%s)\n", uuid.c_str(), speakerName.c_str());
+				}
+				return dumped;
+			}
+		}
+		return false;
+	}
 }

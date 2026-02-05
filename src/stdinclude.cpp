@@ -92,8 +92,7 @@ namespace debug {
 	}
 }
 
-
-LONG WINAPI seh_filter(EXCEPTION_POINTERS* ep) {
+void LogException(EXCEPTION_POINTERS* ep) {
 	DWORD code = ep->ExceptionRecord->ExceptionCode;
 	PVOID addr = ep->ExceptionRecord->ExceptionAddress;
 
@@ -118,8 +117,58 @@ LONG WINAPI seh_filter(EXCEPTION_POINTERS* ep) {
 
 	debug::DumpRelationMemoryHex((const void*)((uintptr_t)addr - 0x20));
 	debug::DumpRegisters();
+}
 
+LONG WINAPI seh_filter(EXCEPTION_POINTERS* ep) {
+	LogException(ep);
 	return EXCEPTION_EXECUTE_HANDLER;
+}
+
+LONG WINAPI GlobalCrashHandler(EXCEPTION_POINTERS* ep) {
+	// Ensure console exists
+	if (!GetConsoleWindow()) {
+		AllocConsole();
+		FILE* fp;
+		freopen_s(&fp, "CONOUT$", "w", stdout);
+		freopen_s(&fp, "CONOUT$", "w", stderr);
+	}
+
+	LogException(ep);
+
+	std::cerr << "\n[FATAL] Program is about to crash. Execution frozen." << std::endl;
+	std::cerr << "Press Ctrl+C to terminate." << std::endl;
+
+	while (true) {
+		Sleep(1000);
+	}
+
+	return EXCEPTION_CONTINUE_SEARCH;
+}
+
+LONG WINAPI VectoredCrashHandler(PEXCEPTION_POINTERS ep) {
+	DWORD code = ep->ExceptionRecord->ExceptionCode;
+
+	// 忽略 C++ 异常和调试器断点
+	if (code == 0xE06D7363 || code == 0x406D1388 || code == EXCEPTION_BREAKPOINT) {
+		return EXCEPTION_CONTINUE_SEARCH;
+	}
+
+	// 仅处理致命异常
+	if (code == EXCEPTION_ACCESS_VIOLATION ||
+		code == EXCEPTION_ILLEGAL_INSTRUCTION ||
+		code == EXCEPTION_PRIV_INSTRUCTION ||
+		code == EXCEPTION_INT_DIVIDE_BY_ZERO ||
+		code == EXCEPTION_STACK_OVERFLOW) {
+		
+		return GlobalCrashHandler(ep);
+	}
+
+	return EXCEPTION_CONTINUE_SEARCH;
+}
+
+void InstallCrashHandler() {
+	AddVectoredExceptionHandler(1, VectoredCrashHandler);
+	SetUnhandledExceptionFilter(GlobalCrashHandler);
 }
 
 
@@ -206,7 +255,7 @@ void UnitIdol::ApplyTo(managed::UnitIdol* managed) {
 		auto boxed = il2cpp_value_box((Il2CppClass*)klass_System_Int32, &AccessoryIds[i]);
 		il2cpp_symbols::array_set_value(accessoryIds, boxed, i);
 	}
-	il2cpp_field_set_value_object(managed, field_UnitIdol_accessoryIds, accessoryIds);
+	il2cpp_field_set_value(managed, field_UnitIdol_accessoryIds, &accessoryIds);
 }
 
 void UnitIdol::Clear() {

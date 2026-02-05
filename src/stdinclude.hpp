@@ -17,6 +17,7 @@
 #include <unordered_map>
 #include <unordered_set>
 #include <map>
+#include <set>
 #include <thread>
 #include <variant>
 
@@ -78,6 +79,7 @@
 #define PRINT(var) std::cout << #var << " = " << var << std::endl;
 #define PRINT_ONCE(_txt_var_) static bool __print_once_##_txt_var_ = [] { PRINT(_txt_var_); return true; }();
 LONG WINAPI seh_filter(EXCEPTION_POINTERS* ep);
+void InstallCrashHandler();
 #define __EXCEPT(strContext) __except (seh_filter(GetExceptionInformation())) { std::cout << "SEH exception detected in '" << strContext << "'.\n"; }
 
 
@@ -326,6 +328,7 @@ extern bool g_enable_console;
 extern bool g_auto_dump_all_json;
 extern bool g_dump_untrans_lyrics;
 extern bool g_dump_untrans_unlocal;
+extern bool g_dual_mode;
 extern std::string g_custom_font_path;
 extern std::filesystem::path g_localify_base;
 extern char hotKey;
@@ -376,8 +379,24 @@ extern float g_magicacloth_limitAngle;
 extern float g_magicacloth_springLimitDistance;
 extern float g_magicacloth_springNoise;
 
+extern bool g_isDumping;
+extern std::string g_dumpingScenarioId;
+extern std::set<std::string> g_dumpedUUIDs;
+extern bool g_debugMode;
 
 namespace tools {
 	extern bool output_networking_calls;
 	extern void AddNetworkingHooks();
 }
+
+#ifdef __SAFETYHOOK
+#define ADD_HOOK(_name_, _nothing_) AddSafetyHook(#_name_, (void*)_name_##_addr, (void*)_name_##_hook, _name_##_orig);
+#else
+#define ADD_HOOK(_name_, _fmt_) \
+	auto _name_##_offset = reinterpret_cast<void*>(_name_##_addr); \
+ 	\
+	const auto _name_##stat1 = MH_CreateHook(_name_##_offset, _name_##_hook, &_name_##_orig); \
+	const auto _name_##stat2 = MH_EnableHook(_name_##_offset); \
+	printf(_fmt_##" (%s, %s)\n", _name_##_offset, MH_StatusToString((MH_STATUS)_name_##stat1), MH_StatusToString((MH_STATUS)_name_##stat2))
+#endif
+#define ADD_HOOK_1(_name_) ADD_HOOK(_name_, #_name_##" at %p")
