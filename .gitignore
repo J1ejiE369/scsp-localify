@@ -155,6 +155,7 @@ resources/text_dumper/bin
 
 .cache/
 .vscode/
+.idea/
 /backend
 
 ### Runtime dumps and temporary outputs

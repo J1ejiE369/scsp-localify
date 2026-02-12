@@ -34,6 +34,13 @@ This document defines the repository flow after forking, the active development 
   - Translation-focused branch.
   - Can be used both for integration into full release and for lightweight translation-only release.
 
+### Legacy branch
+
+- `feature/model-dumper-legacy`
+  - Historical branch retained for reference.
+  - No new feature development should continue here.
+  - Useful changes must be migrated into `feature/asset-extraction`.
+
 ## Development Rules
 
 1. Daily development switches only between:

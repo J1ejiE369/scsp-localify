@@ -13,9 +13,14 @@ Turn the current mixed workspace into a traceable, parallel-safe workflow across
 - Repo: `J1ejiE369/scsp-localify` (`origin`)
 - Remote branches:
   - `main` -> `b5d3611`
+  - `feature/reverse-analysis` -> `4e5645a`
+  - `feature/asset-extraction` -> `0896199`
+  - `feature/localization` -> `b5d3611`
   - `feature/timeline-dump` -> `034f1b4`
   - `feature/timeline-hook-v2` -> `f7fa355`
-- Local active branch: `feature/model-dumper` (no upstream yet)
+- Local active branch: `feature/reverse-analysis`
+- Legacy branch:
+  - `feature/model-dumper-legacy` (kept for history, no active development)
 
 ## Workstream Breakdown
 
@@ -72,9 +77,9 @@ Turn the current mixed workspace into a traceable, parallel-safe workflow across
 
 ## Next Actions
 
-1. Create feature branches for the three tracks from `origin/main`.
-2. Split current dirty changes by file ownership into target branches.
-3. Keep a rescue backup (stash + backup branch) until split is verified.
+1. Keep daily development constrained to the three active branches.
+2. Treat `feature/model-dumper-legacy` as read-only history.
+3. Keep rescue snapshots until asset/localization tracks are fully validated.
 4. Enforce PR evidence requirements from `BRANCH_POLICY.md`.
 
 ## Experiment Record Format
