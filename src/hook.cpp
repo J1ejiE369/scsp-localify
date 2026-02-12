@@ -1,4 +1,5 @@
 #include <stdinclude.hpp>
+#include "probe/probe.hpp"
 #include <unordered_set>
 #include <ranges>
 #include <set>
@@ -741,6 +742,19 @@ namespace
 		return ret;
 	}
 
+	HOOK_ORIG_TYPE Mesh_UploadMeshDataImpl_orig;
+	void Mesh_UploadMeshDataImpl_hook(void* mesh, bool markNoLongerReadable) {
+		static int s_meshUploadImplInterceptCount = 0;
+		if (markNoLongerReadable) {
+			markNoLongerReadable = false;
+			++s_meshUploadImplInterceptCount;
+			if (s_meshUploadImplInterceptCount <= 10 || (s_meshUploadImplInterceptCount % 100 == 0)) {
+				printf("[MeshHook] UploadMeshDataImpl intercepted: true->false (count=%d)\n", s_meshUploadImplInterceptCount);
+			}
+		}
+		HOOK_CAST_CALL(void, Mesh_UploadMeshDataImpl)(mesh, markNoLongerReadable);
+	}
+
 	static const char* UnityShaderUsualPropertyNames[] = {
 		"_MainTex",
 		"_BaseMap",
@@ -1221,10 +1235,23 @@ namespace
 		else ExtractAsset(obj, name);
 	}
 
+	HOOK_ORIG_TYPE AssetBundle_LoadFromFile_orig;
+	void* AssetBundle_LoadFromFile_hook(Il2CppString* path, UINT32 crc, UINT64 offset) {
+		auto ret = HOOK_CAST_CALL(void*, AssetBundle_LoadFromFile)(path, crc, offset);
+		if (ret && path) {
+			probe::RecordBundleLoad((Il2CppObject*)ret, path->ToUtf8String());
+		}
+		return ret;
+	}
+
 	HOOK_ORIG_TYPE AssetBundle_LoadAsset_orig;
 	void* AssetBundle_LoadAsset_hook(Il2CppObject* _this, Il2CppString* name, Il2CppReflectionType* type)
 	{
 		static auto method_AssetBundle_get_name = il2cpp_symbols_logged::get_method("UnityEngine.AssetBundleModule.dll", "UnityEngine", "AssetBundle", "get_name", 0);
+
+		if (name) {
+			probe::RecordAssetLoad(_this, name->ToUtf8String());
+		}
 
 		if (g_loadasset_output) {
 			auto assetBundleName = method_AssetBundle_get_name->Invoke<Il2CppString*>(_this, {});
@@ -2201,6 +2228,7 @@ namespace
 
 	HOOK_ORIG_TYPE MainThreadDispatcher_LateUpdate_orig;
 	void MainThreadDispatcher_LateUpdate_hook(void* _this, void* method) {
+		probe::Update();
 		try {
 			auto it = mainThreadTasks.begin();
 			while (it != mainThreadTasks.end()) {
@@ -3089,12 +3117,11 @@ namespace
 			il2cpp_symbols::get_method_pointer("mscorlib.dll", "System.IO", "File", "ReadAllBytes", 1)
 			);
 
-		AssetBundle_LoadFromFile = reinterpret_cast<decltype(AssetBundle_LoadFromFile)>(
-			il2cpp_symbols::get_method_pointer(
+		auto AssetBundle_LoadFromFile_addr = il2cpp_symbols::get_method_pointer(
 				"UnityEngine.AssetBundleModule.dll", "UnityEngine",
 				"AssetBundle", "LoadFromFile", 3
-			)
 			);
+		AssetBundle_LoadFromFile = reinterpret_cast<decltype(AssetBundle_LoadFromFile)>(AssetBundle_LoadFromFile_addr);
 		Object_IsNativeObjectAlive = reinterpret_cast<bool(*)(void*)>(
 			il2cpp_symbols::get_method_pointer("UnityEngine.CoreModule.dll", "UnityEngine",
 				"Object", "IsNativeObjectAlive", 1)
@@ -3172,6 +3199,10 @@ namespace
 		auto LiveMVOverlayView_UpdateLyrics_addr = il2cpp_symbols::get_method_pointer(
 			"PRISM.Interactions.Live.dll", "PRISM.Interactions.Live",
 			"LiveMVOverlayView", "UpdateLyrics", 1
+		);
+		auto Mesh_UploadMeshDataImpl_addr = il2cpp_symbols::get_method_pointer(
+			"UnityEngine.CoreModule.dll", "UnityEngine",
+			"Mesh", "UploadMeshDataImpl", 1
 		);
 		auto TimelineController_SetLyric_addr = il2cpp_symbols::get_method_pointer(
 			"PRISM.Legacy.dll", "PRISM",
@@ -3431,7 +3462,9 @@ namespace
 		ADD_HOOK(LocalizationManager_GetTextOrNull, "LocalizationManager_GetTextOrNull at %p");
 		ADD_HOOK(GetResolutionSize, "GetResolutionSize at %p");
 		ADD_HOOK(AssetBundle_LoadAsset, "AssetBundle_LoadAsset at %p");
+		ADD_HOOK(AssetBundle_LoadFromFile, "AssetBundle_LoadFromFile at %p");
 		ADD_HOOK(LiveMVOverlayView_UpdateLyrics, "LiveMVOverlayView_UpdateLyrics at %p");
+		ADD_HOOK(Mesh_UploadMeshDataImpl, "Mesh_UploadMeshDataImpl at %p");
 		ADD_HOOK(TimelineController_SetLyric, "TimelineController_SetLyric at %p");
 		ADD_HOOK(get_baseCamera, "get_baseCamera at %p");
 		ADD_HOOK(Unity_get_position, "Unity_get_position at %p");

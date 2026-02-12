@@ -446,6 +446,7 @@ typedef FieldInfo* (*il2cpp_class_get_field_from_name_t)(void* klass, const char
 typedef bool (*il2cpp_class_is_assignable_from_t)(void* klass, void* oklass);
 typedef void (*il2cpp_class_for_each_t)(void(*klassReportFunc)(void* klass, void* userData), void* userData);
 typedef void* (*il2cpp_class_get_nested_types_t)(void* klass, void** iter);
+typedef FieldInfo* (*il2cpp_class_get_fields_t)(void* klass, void** iter);
 typedef void* (*il2cpp_class_get_type_t)(void* klass);
 typedef Il2CppReflectionType* (*il2cpp_type_get_object_t)(const void* type);
 typedef void* (*il2cpp_gchandle_new_t)(void* obj, bool pinned);
@@ -501,6 +502,7 @@ extern il2cpp_class_get_field_from_name_t il2cpp_class_get_field_from_name;
 extern il2cpp_class_is_assignable_from_t il2cpp_class_is_assignable_from;
 extern il2cpp_class_for_each_t il2cpp_class_for_each;
 extern il2cpp_class_get_nested_types_t il2cpp_class_get_nested_types;
+extern il2cpp_class_get_fields_t il2cpp_class_get_fields;
 extern il2cpp_class_get_type_t il2cpp_class_get_type;
 extern il2cpp_type_get_object_t il2cpp_type_get_object;
 extern il2cpp_gchandle_new_t il2cpp_gchandle_new;

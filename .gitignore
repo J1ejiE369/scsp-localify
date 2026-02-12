@@ -156,3 +156,24 @@ resources/text_dumper/bin
 .cache/
 .vscode/
 /backend
+
+### Runtime dumps and temporary outputs
+ModelDumps/
+**/ModelDumps/
+dump_tmp/
+trace_tmp/
+*.glb
+*.gltf
+*.bin
+
+### Python local environments and caches
+Model_Extraction_Tools/venv/
+**/__pycache__/
+*.pyc
+
+### Local analysis scripts and logs
+tools/audit/output/
+*.trace.json
+
+### Cursor local project config
+.cursor/
