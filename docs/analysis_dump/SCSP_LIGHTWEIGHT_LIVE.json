@@ -1,0 +1,72 @@
+{
+  "OverlayCanvas(Clone)": {
+    "_comment": "MV/Live 模式专属浮层画布（包含暂停、歌词、截图等）。注意：即便底层渲染模式变了，最上层的 UI 依然是复用同一套的。",
+    "LiveMVOverlayView(Clone)": {
+      "BackgroundBlocker": {},
+      "ResumeButton": {},
+      "ShowPauseMenuButton": {},
+      "PauseButton": {},
+      "SafeArea": {
+        "PauseMenu": {},
+        "CameraControlView": {},
+        "Lyrics": {},
+        "InvalidCameraOperationMessage": {},
+        "ScreenshotButton": {}
+      },
+      "ScreenshotShutterView": {
+        "FullScreen_Pivot": {},
+        "Flash": {}
+      }
+    }
+  },
+  "CriManaMovieResources": {
+    "_comment": "视频解码资源池。在上一个 3D 模式中，它是用来播放舞台后面的小屏幕的；而在这里，它是用来全屏播放整首 2D 背景视频（Movie）的。"
+  },
+  "GlobalPhysicsObject": { "_comment": "全局物理系统。" },
+  "IAPUtil": { "_comment": "应用内购。" },
+  "AnalyticsContainer": { "_comment": "数据分析埋点。" },
+  "[DOTween]": { "_comment": "UI动画引擎。" },
+  "CRIWARE": { "_comment": "音视频底层中间件。" },
+  "SoundManager": { "_comment": "游戏音频调度器。" },
+  "StopWatchObject": { "_comment": "性能监控计时器。" },
+  "SceneTransitionManager(Clone)": { "_comment": "场景切换管理器。" },
+  "PRISMMain(Clone)": { "_comment": "系统级主控。" },
+  "EventSystem": { "_comment": "UI点击事件分发系统。" },
+  "MainThreadDispatcher": { "_comment": "主线程任务调度器。" },
+  "OutGameMain": { "_comment": "局外系统入口。" },
+  "UI": {
+    "_comment": "常规UI根节点。",
+    "UICamera": {},
+    "UICanvas": {
+      "PreparationGroup": {},
+      "DisplayGroup": {
+        "LiveInGameView": { "_comment": "视图状态：当前依然处于【Live In-Game (演唱会/打歌中)】！" }
+      },
+      "UITouchCanvas": {
+        "DragParticle(Clone)": {},
+        "TouchParticle(Clone)": {}
+      }
+    },
+    "OverScreenUI": {
+      "Downloading": {
+        "ForegroundDL": {},
+        "BackgroundDL": {}
+      },
+      "MissionNotice": {}
+    }
+  },
+  "LightweightLiveScene": {
+    "_comment": "巨大发现：这是游戏的【轻量级（2D）Live 模式】根节点！当玩家为了省电、防止发热掉帧，而在设置中关闭了华丽的 3D MV 时，游戏就会卸载掉刚才那个拥有几百个节点的 3D 舞台，转而挂载这个极其精简的场景。",
+    "Canvas": {
+      "_comment": "轻量模式的专属 2D 画布。",
+      "BackgroundImage": { "_comment": "静态背景图。在最低画质的 2D 模式下，打歌背景可能只是显示一张带有歌曲封面的静态图片。" },
+      "Live2DMVPlayer": {
+        "_comment": "2D 动态 MV 播放器组件。",
+        "Movie": { "_comment": "结合上面的 CriManaMovieResources，这里是通过 UI 材质直接全屏播放预渲染好的 2D 动画视频（或者 Live2D 动画），从而将手机的 CPU/GPU 渲染压力降到最低。" }
+      }
+    },
+    "Camera": {
+      "_comment": "极其简单的正交（Orthographic）摄像机。不需要复杂的 3D 运镜、景深或跟焦特效，只负责把 Canvas 拍扁显示在屏幕上。"
+    }
+  }
+}

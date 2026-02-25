@@ -1,0 +1,85 @@
+{
+  "OverlayCanvas(Clone)": {
+    "_comment": "MV/Live 模式下的专属浮层画布，拥有极高的渲染层级，覆盖在所有 3D 画面和常规 UI 之上。",
+    "LiveMVOverlayView(Clone)": {
+      "_comment": "MV 观看模式的核心 UI 视图。",
+      "BackgroundBlocker": { "_comment": "全屏的背景阻挡层，防止在呼出菜单时玩家误触背后的模型，或者用于使背景变暗。" },
+      "ResumeButton": { "_comment": "继续播放按钮。" },
+      "ShowPauseMenuButton": { "_comment": "呼出暂停菜单按钮。" },
+      "PauseButton": { "_comment": "暂停按钮。" },
+      "SafeArea": {
+        "PauseMenu": { "_comment": "暂停菜单本体。" },
+        "CameraControlView": { "_comment": "摄像机控制面板（在部分 MV 模式下允许玩家自由滑动屏幕来旋转、缩放视角）。" },
+        "Lyrics": { "_comment": "歌词显示组件。根据音乐进度动态读取并滚动的歌词文本。" },
+        "InvalidCameraOperationMessage": { "_comment": "无效的摄像机操作提示（比如在锁定视角的导演预设机位下，玩家尝试滑动屏幕时弹出的提示）。" },
+        "ScreenshotButton": { "_comment": "截图按钮。" }
+      },
+      "ScreenshotShutterView": {
+        "_comment": "截图时的快门闪光特效组件。",
+        "FullScreen_Pivot": {},
+        "Flash": { "_comment": "全屏闪白光的屏幕特效节点，模拟单反相机的快门感。" }
+      }
+    }
+  },
+  "CriManaMovieResources": {
+    "_comment": "极为关键：CRIWARE 旗下的 CriMana 视频解码资源池。这里出现了两个实例。现代偶像游戏中，舞台后方的巨大 LED 屏幕（Monitor）通常并不是用 3D 实时渲染的，而是直接在屏幕材质上播放带透明通道的视频（Alpha Movie），这就需要 CriMana 组件实时解码视频流并映射到舞台模型的屏幕上。"
+  },
+  "GlobalPhysicsObject": { "_comment": "全局物理系统。" },
+  "IAPUtil": { "_comment": "应用内购。" },
+  "AnalyticsContainer": { "_comment": "数据分析埋点。" },
+  "[DOTween]": { "_comment": "UI动画驱动核心。" },
+  "CRIWARE": { "_comment": "音视频中间件底层。" },
+  "SoundManager": { "_comment": "游戏音频调度器。" },
+  "StopWatchObject": { "_comment": "性能监控计时器。" },
+  "SceneTransitionManager(Clone)": { "_comment": "场景切换大管家。" },
+  "PRISMMain(Clone)": { "_comment": "系统级主控。" },
+  "EventSystem": { "_comment": "UI点击事件分发系统。" },
+  "MainThreadDispatcher": { "_comment": "主线程任务调度器。" },
+  "OutGameMain": { "_comment": "局外系统入口。" },
+  "UI": {
+    "_comment": "常规UI根节点。",
+    "UICanvas": {
+      "DisplayGroup": {
+        "LiveInGameView": { "_comment": "核心变化点：当前激活的底层视图是【Live In-Game (3D 演唱会/MV)】！" }
+      },
+      "UITouchCanvas": {
+        "DragParticle(Clone)": { "_comment": "屏幕拖尾特效。" },
+        "TouchParticle(Clone)": { "_comment": "屏幕点击特效。" }
+      }
+    }
+  },
+  "023_Watasi": {
+    "_comment": "惊人发现：当前正在播放的 MV 序列总根节点。'023' 极有可能是这首歌的内部 ID，'Watasi' 则是歌曲名字的罗马音缩写（如：わたし / 私）。整个 MV 的资产全部打包在这个节点下动态加载。",
+    "DropShadowLight": { "_comment": "专用灯光：仅用于在舞台地板上投射角色清晰的脚底阴影。" },
+    "Characters": {
+      "m_ALL_22_0001_BTBSKY_001_00001_BTBSKY_01_22": {
+        "_comment": "正在演出的角色实例（ID: 22）。她穿着代号为 'BTBSKY' 的演出服。",
+        "MODEL_00": {}, "face": {}, "hair": {}, "accessory": {}, "dress": {}
+      }
+    },
+    "LiveCamera": {
+      "_comment": "Live 专属运镜摄像机栈。"
+    },
+    "Stage_000500": {
+      "_comment": "3D 舞台模型（Stage ID: 000500）。",
+      "MONITOR": { "_comment": "舞台中央或两侧的 LED 大屏幕。通常配合上方的 CriManaMovieResources 播放动态背景或角色特写视频。" },
+      "SpotLight_Locator": { "_comment": "舞台聚光灯（射灯）的定位器。Timeline 会驱动这些光束像真实的演唱会一样扫射、跟随角色移动。" }
+    },
+    "gr_PostProcessVolume": {
+      "_comment": "Live 专属的高级后期滤镜组。",
+      "Post-process Volume_FocusCamera": { "_comment": "非常硬核的渲染细节：专为相机对焦（Focus）设置的副滤镜。当摄像机给角色脸部特写时，这个体积会自动激活，开启极强的景深（DoF）效果，虚化背景舞台的灯光，形成电影级的“光斑（Bokeh）”。" }
+    },
+    "Timeline": {
+      "_comment": "核心驱动：Unity Timeline 引擎组件！整首 MV 的动作、走位、口型同步、切镜、灯光颜色变幻，全是依靠这个时间轴轨道（Timeline Tracks）在精确的毫秒级控制下全自动播放的。可以说是整个 Live 模式的灵魂。"
+    },
+    "EyeTargets": {
+      "_comment": "目光追踪目标池。为了让角色在复杂的舞蹈中不仅能看着正前方，还能在转身、互动时看向不同的方向（比如看向台下观众、看向侧边镜头、或是低头），预设了多达 10 个 EyeTarget 节点，由 Timeline 在不同时刻动态切换角色的视线焦点，防止眼神死板。"
+    }
+  },
+  "EffectPlayer": {
+    "_comment": "特效播放器。专门管理 Live 舞台上的礼花、镭射激光、烟雾、星光等粒子特效（Particle System）的生成和销毁时机。"
+  },
+  "CharacterLighting": {
+    "_comment": "偶像专属光照。这是二次元 3D 游戏的“潜规则”：无论舞台的聚光灯是深红还是幽蓝，角色的脸永远是白皙透亮的，这是因为有一组“只照角色、绝对不照舞台”的专属灯光组在独立发挥作用。"
+  }
+}

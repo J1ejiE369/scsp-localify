@@ -1,0 +1,95 @@
+{
+  "s44_01020199_00": {
+    "_comment": "剧情实例根节点。这是当前正在播放的剧情（第44季_第01020199话）。",
+    "Handler": {
+      "_comment": "逻辑控制中心。包含时间轴、选项、跳转、声音等所有剧情逻辑的处理器。",
+      "OperationHandler": { "_comment": "处理玩家的点击、快进、自动播放操作。" },
+      "TimeHandler": { "_comment": "控制剧情时间轴的推进。" },
+      "ChoiceHandler": { "_comment": "处理剧情分支选项。" },
+      "JumpHandler": { "_comment": "处理剧情跳转。" },
+      "SoundHandler": { "_comment": "控制语音和音效播放。" },
+      "PhysicsHandler": { "_comment": "控制物理模拟（如头发飘动）的开关。" }
+    },
+    "Cameras": {
+      "_comment": "剧情专属摄像机组。",
+      "MainCamera": { "_comment": "渲染3D场景的主摄像机。" },
+      "OverlayEffectCamera": { "_comment": "渲染全屏特效（如泛光）的摄像机。" },
+      "CaptureOverlayCamera": { "_comment": "用于截屏或特殊画面处理的摄像机。" },
+      "UICamera": { "_comment": "专门渲染剧情UI的摄像机。" }
+    },
+    "Directional Light": { "_comment": "场景主光源。" },
+    "Volume": { "_comment": "后期处理体积（滤镜）。" },
+    "Render3DManager": { "_comment": "3D渲染管理器。" },
+    "CanvasRoot": {
+      "_comment": "剧情UI的总根节点。",
+      "3dOverlayCanvas": {
+        "DramaFadePanel": { "_comment": "3D空间中的淡入淡出遮罩。" }
+      },
+      "CaptureOverlayCanvas": {
+        "RawImage": { "_comment": "显示截屏画面的组件。" }
+      },
+      "UICanvas": {
+        "_comment": "核心UI画布。",
+        "SafeArea": {
+          "DramaSubtitleView": {
+            "_comment": "字幕视图。显示底部的对话框。",
+            "SubtitleText": {
+              "TextArea": {
+                "NameText": { "_comment": "角色名字。" },
+                "Line": { "_comment": "装饰线。" },
+                "BodyText": { "_comment": "对话内容文本。" }
+              },
+              "Indicator": { "_comment": "对话框末尾的'下一页'三角形提示符。" }
+            }
+          }
+        },
+        "DramaFadePanel": { "_comment": "UI层面的淡入淡出遮罩。" },
+        "DramaUIViewRoot": {
+          "_comment": "剧情UI视图的真正容器。",
+          "DramaUIView(Clone)": {
+            "_comment": "剧情UI的实例化对象。",
+            "DramaScreenOperationLegacyView": { "_comment": "旧版屏幕操作视图（可能用于兼容或特定模式）。" },
+            "DramaScreenOperationView": {
+              "_comment": "屏幕操作视图。检测玩家点击屏幕翻页的区域。",
+              "ShowMenuButton": { "_comment": "显示菜单按钮。" },
+              "TurnPageArea": { "_comment": "翻页点击区域（通常是全屏透明按钮）。" }
+            },
+            "Cmn_SafeArea": {
+              "_comment": "安全区内的通用UI。",
+              "AdvTitleView": {
+                "_comment": "这就是你要找的！左上角的标题信息卡。",
+                "back": { "_comment": "标题卡背景。" },
+                "AnimatedObjects": {
+                  "content": {
+                    "1LineTitle": { "_comment": "单行标题样式。" },
+                    "2LineTitle": { "_comment": "双行标题样式。" },
+                    "2LineTitleStory": { "_comment": "故事模式双行标题。" },
+                    "icon": {
+                      "_comment": "角色头像图标区域。",
+                      "ProduceIdolIcon_Square": { "_comment": "P卡（Produce Idol）方形头像。" },
+                      "SupportCharacterIconView_Square": { "_comment": "S卡（Support Character）方形头像。" },
+                      "CharacterBaseIconView_Square2": { "_comment": "通用角色方形头像。" },
+                      "UnitIconImage": { "_comment": "组合/队伍图标。" }
+                    }
+                  }
+                }
+              },
+              "Margin (1)": {
+                "MaxPlaySpeedView": { "_comment": "最高倍速播放提示图标。" }
+              }
+            },
+            "DramaMenuView": {
+              "_comment": "剧情菜单（点击屏幕后弹出的暂停/设置菜单）。",
+              "SubMenuArea": {
+                "ShareButton": { "_comment": "分享按钮。" },
+                "SettingsButton": { "_comment": "设置按钮。" },
+                "LogButton": { "_comment": "剧情回放（Log）按钮。" },
+                "SkipButton": { "_comment": "跳过按钮。" }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

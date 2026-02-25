@@ -1,0 +1,168 @@
+{
+  "GlobalPhysicsObject": {
+    "_comment": "全局物理系统。负责头发、衣服等软体的物理飘动解算。"
+  },
+  "IAPUtil": {
+    "_comment": "工具类：应用内购。"
+  },
+  "AnalyticsContainer": {
+    "_comment": "工具类：数据分析埋点。"
+  },
+  "[DOTween]": {
+    "_comment": "单例：UI动画驱动核心。"
+  },
+  "CRIWARE": {
+    "_comment": "单例：音视频中间件底层。"
+  },
+  "SoundManager": {
+    "_comment": "管理器：游戏音频调度器。",
+    "CriWareLibraryInitializer": { "_comment": "CRIWARE初始化器" },
+    "CriAtom": { "_comment": "CRI音频播放核心" }
+  },
+  "StopWatchObject": {
+    "_comment": "管理器：计时器或性能分析组件。"
+  },
+  "SceneTransitionManager(Clone)": {
+    "_comment": "管理器：场景切换大管家。",
+    "Canvas": {
+      "FadeImage": { "_comment": "过场黑屏遮罩。" }
+    }
+  },
+  "PRISMMain(Clone)": {
+    "_comment": "主控节点：系统级UI控制。",
+    "OverlayCanvasBelowBlurCamera": {},
+    "OverlayCanvasAboveBlurCamera": {},
+    "OverScreenUI": {
+      "Connecting": {
+        "IcoLoading": { "_comment": "网络通信转圈图标" }
+      },
+      "Loading": {
+        "CommonLoadingContent": { "_comment": "加载界面" },
+        "SimpleFadeLoadingContent": {},
+        "SpecialAnimationLoadingContent": {}
+      }
+    },
+    "UIOverlayCanvas": {
+      "InputBlocker": { "_comment": "防误触遮罩" },
+      "ErrorModalWindow": {
+        "Root": { "_comment": "报错弹窗" }
+      }
+    },
+    "Magica Settings": { "_comment": "MagicaCloth 物理引擎全局参数配置。" }
+  },
+  "EventSystem": {
+    "_comment": "核心组件：Unity内置的UI点击事件分发系统。"
+  },
+  "MainThreadDispatcher": {
+    "_comment": "核心组件：主线程任务调度器。"
+  },
+  "OutGameMain": {
+    "_comment": "核心组件：局外系统主入口。"
+  },
+  "UI": {
+    "_comment": "游戏界面主节点",
+    "UICamera": { "_comment": "专门渲染UI的摄像机" },
+    "UICanvas": {
+      "PreparationGroup": {},
+      "DisplayGroup": {
+        "CostumeChangeTopView": { "_comment": "核心变化点：当前激活的界面是【换装/服装预览界面】！" }
+      },
+      "UITouchCanvas": {
+        "DragParticle(Clone)": { "_comment": "玩家在换装界面拖拽屏幕旋转模型时产生的拖拽拖尾粒子。" },
+        "TouchParticle(Clone)": { "_comment": "点击粒子特效。" }
+      }
+    },
+    "OverScreenUI": {
+      "Downloading": {
+        "ForegroundDL": { "_comment": "前台下载进度条" },
+        "BackgroundDL": { "_comment": "后台下载提示" }
+      },
+      "MissionNotice": { "_comment": "任务完成的横幅提示" }
+    }
+  },
+  "Main Camera": {
+    "_comment": "3D场景的主摄像机。在换装界面中，玩家滑动屏幕就是通过控制这台摄像机来全方位观察偶像的。"
+  },
+  "Directional Light": {
+    "_comment": "主平行光。为更衣室提供全局的照明阴影。"
+  },
+  "Render3DManager": {
+    "_comment": "3D渲染管理器。换装界面通常对光影要求极高，这个管理器用于动态调整打光、抗锯齿或渲染质量。"
+  },
+  "CostumeChange": {
+    "_comment": "业务管理器：专门负责处理换装逻辑（模型卸载、加载、部件穿脱组合）。"
+  },
+  "Post-process Volume": {
+    "_comment": "渲染组件：后期处理滤镜（Bloom泛光等）。"
+  },
+  "BgModel_0053": {
+    "_comment": "当前的3D背景模型实例。0053很可能是“换装间/试衣间”对应的背景ID。",
+    "BgModel_0053": {
+      "BgModel_0053": {}
+    }
+  },
+  "SpawnCharacter": {
+    "_comment": "极其核心的发现！角色生成器/控制根节点。包含了当前试穿的角色及其所有动画、IK、表情控制模块。",
+    "Locator": {
+      "_comment": "角色模型的实际挂载定位点。",
+      "m_ALL_02_2643_VLTDMD_013_02643_VLTDMD_00_02": {
+        "_comment": "偶像模型实例（ID: 02）。",
+        "MODEL_00": { "_comment": "骨架与基础网格。" },
+        "face": { "_comment": "面部网格。" },
+        "hair": { "_comment": "头发网格。" },
+        "accessory": { "_comment": "饰品网格。" },
+        "dress": { "_comment": "当前试穿的服装网格。" },
+        "PlaneDropShadow(Clone)": { "_comment": "省性能的假阴影贴图。" }
+      }
+    },
+    "LayerWeightReciever": {
+      "_comment": "动画奇观：表情与口型权重接收器！开发者利用这些空节点作为中转站，将动画曲线（Animation Curve）的值写入这里，再由脚本统一读取后映射到角色的面部 BlendShape（融合变形）上。这是一种非常解耦的表情控制架构。",
+      "LipA": { "_comment": "口型动作：啊 (A)" },
+      "LipI": { "_comment": "口型动作：伊 (I)" },
+      "LipU": { "_comment": "口型动作：呜 (U)" },
+      "LipE": { "_comment": "口型动作：诶 (E)" },
+      "LipO": { "_comment": "口型动作：哦 (O)" },
+      "A": {}, "I": {}, "U": {}, "E": {}, "O": {},
+      "SA": {}, "SI": {}, "SE": {},
+      "Serious": { "_comment": "情绪权重：严肃" },
+      "Shy": { "_comment": "情绪权重：害羞" },
+      "Surp": { "_comment": "情绪权重：惊讶 (Surprise)" },
+      "Anger": { "_comment": "情绪权重：愤怒" },
+      "--------Eye-------": { "_comment": "--这是开发者的强迫症：用空节点当做分隔符--" },
+      "EyeClose_R": { "_comment": "右眼闭合程度" },
+      "EyeSmile_R": { "_comment": "右眼笑眼程度" },
+      "EyeClose_L": { "_comment": "左眼闭合程度" },
+      "EyeSmile_L": { "_comment": "左眼笑眼程度" },
+      "Close_R": {}, "Smile_R": {}, "Close_L": {}, "Smile_L": {},
+      "--------EyeBrow--------": { "_comment": "--眉毛控制分隔符--" },
+      "EBSeriousL": { "_comment": "左眉：严肃" },
+      "EBSeriousR": { "_comment": "右眉：严肃" },
+      "EBSadL": { "_comment": "左眉：悲伤" },
+      "EBSadR": { "_comment": "右眉：悲伤" },
+      "EBUniqueL": { "_comment": "左眉：特殊形态" },
+      "EBUniqueR": { "_comment": "右眉：特殊形态" },
+      "EBUpL": { "_comment": "左眉：上挑" },
+      "EBUpR": { "_comment": "右眉：上挑" },
+      "EBDownL": { "_comment": "左眉：下压" },
+      "EBDownR": { "_comment": "右眉：下压" },
+      "--------Other--------": { "_comment": "--其他控制分隔符--" },
+      "LipWeight": { "_comment": "全局嘴唇动作的权重倍率" },
+      "SeriousWeight": { "_comment": "全局严肃动作的权重倍率" },
+      "MouthScale": { "_comment": "嘴部缩放（可能用于Q版或特定夸张表情）" },
+      "FacialEyeTargetRoot": {
+        "FacialLocator": { "_comment": "面部特征挂载点，可能用来挂载红晕、汗滴等2D/3D面部特效片。" }
+      }
+    },
+    "IKTarget": {
+      "_comment": "Inverse Kinematics（逆向运动学）控制组。在换装界面，当你旋转镜头时，偶像会一直“看着你”，就是通过这组 IK 实现的。",
+      "LookAtBodyTarget": {
+        "LookAtEyeTarget": { "_comment": "驱动眼球骨骼始终看向这里。代码只需改变这个点的空间坐标，角色的视线就会自动跟随。" }
+      }
+    },
+    "Audios": {
+      "_comment": "当前角色实例的专属声音源。",
+      "SE": { "_comment": "物理音效（如角色做待机动作时的布料摩擦声、首饰碰撞声）。" },
+      "Voice": { "_comment": "语音组件（播放玩家给角色换衣服时，她给出的语音反馈台词）。" }
+    }
+  }
+}

@@ -1,0 +1,86 @@
+{
+  "SwayBoneManager": {
+    "_comment": "非常特别的发现：摇曳骨骼管理器。与之前的全局物理系统(MagicaCloth)不同，这可能是一套游戏自研的（或传统的）物理飘动系统，专门用于处理头发、饰品的轻微摆动。"
+  },
+  "ScenarioManager(Clone)": {
+    "_comment": "剧情/场景交互管理器。控制2D立绘、3D模型和背景的整合显示。",
+    "Canvas": {
+      "SafeArea": {
+        "TypingText": { "_comment": "打字机文本组件（剧情对话框）。" }
+      }
+    },
+    "FadeCanvas": {
+      "FadeView": { "_comment": "场景内淡入淡出遮罩。" }
+    },
+    "FgCanvas": {
+      "CharaRawImages": {
+        "CharaRawImage": { "_comment": "前景画布：用于渲染2D立绘或全屏CG。" }
+      }
+    },
+    "BgCanvas": {
+      "BgImage": { "_comment": "背景画布：用于渲染纯2D的背景图片。" }
+    },
+    "ADVUICam": { "_comment": "渲染剧情专属UI的摄像机。" },
+    "ShakeCam": { "_comment": "震动特效摄像机。" },
+    "Characters": {
+      "_comment": "核心亮点：在这个界面下，内存中竟然一口气加载了多达 5 位 3D 角色模型实例（ID分别是 04, 05, 06, 07, 08）！这极有可能是某个5人偶像小队（Unit）全员集结的剧情界面。",
+      "m_ALL_04_0164_04PL01_003_01006_NONEDR_00_04": {
+        "_comment": "角色实例（ID: 04）。",
+        "MODEL_00": {}, "face": {}, "hair": {}, "accessory": {}, "dress": {}, "PlaneDropShadow(Clone)": {}
+      },
+      "m_ALL_05_0160_05SC01_001_21007_NONEDR_00_05": { "_comment": "角色实例（ID: 05）。" },
+      "m_ALL_06_0009_06SC01_001_21011_NONEDR_00_06": { "_comment": "角色实例（ID: 06）。" },
+      "m_ALL_07_0010_07PL01_003_11002_NONEDR_00_07": {
+        "_comment": "角色实例（ID: 07）。注意：这名角色有一个与众不同的特殊节点！",
+        "MODEL_00": {},
+        "SwayBone": { "_comment": "独立的摇曳骨骼控制节点。可能是该角色目前穿着的特定服装（比如带有极长飘带或兽耳）不适用全局物理引擎，需要用老式的 SwayBone 脚本进行单独的局部物理模拟。" },
+        "face": {}, "hair": {}, "accessory": {}, "dress": {}, "PlaneDropShadow(Clone)": {}
+      },
+      "m_ALL_08_0147_08PL01_001_91001_NONEDR_00_08": { "_comment": "角色实例（ID: 08）。" }
+    },
+    "BgModel_0010(Clone)": {
+      "_comment": "办公室/事务所的 3D 背景模型。"
+    }
+  },
+  "GlobalPhysicsObject": { "_comment": "常规全局物理引擎对象（如 MagicaCloth）。" },
+  "IAPUtil": { "_comment": "应用内购组件。" },
+  "AnalyticsContainer": { "_comment": "数据分析埋点容器。" },
+  "[DOTween]": { "_comment": "UI补间动画引擎。" },
+  "SoundManager": { "_comment": "音频管理器。" },
+  "StopWatchObject": { "_comment": "性能/计时对象。" },
+  "SceneTransitionManager(Clone)": { "_comment": "场景切换管理器。" },
+  "PRISMMain(Clone)": { "_comment": "系统级主控。" },
+  "EventSystem": { "_comment": "UI事件分发。" },
+  "MainThreadDispatcher": { "_comment": "主线程任务调度器。" },
+  "OutGameMain": { "_comment": "局外系统入口。" },
+  "UI": {
+    "_comment": "常规UI根节点。",
+    "UICamera": {},
+    "UICanvas": {
+      "PreparationGroup": {},
+      "DisplayGroup": {
+        "AdvLauncherView": { "_comment": "核心变化点：当前激活的视图是【ADV（文字冒险/剧情）启动界面】。可能是点击某个主线故事后，准备进入具体剧情演出的过渡选单。" }
+      },
+      "UITouchCanvas": {
+        "DragParticle(Clone)": { "_comment": "屏幕拖尾粒子。" },
+        "TouchParticle(Clone)": { "_comment": "屏幕点击星星粒子。" }
+      }
+    }
+  },
+  "Post-process Volume": { "_comment": "后期处理体积（画面滤镜）。" },
+  "CRIWARE": { "_comment": "音视频底层中间件（这里由于层级遍历算法的原因可能被扫描到了两次，或者是挂载在不同场景下的多个实例）。" },
+  "IKTarget1": { "_comment": "逆向运动学目标（如视线跟随追踪点）。" },
+  "Scenario": { "_comment": "新发现：全局剧情逻辑根节点（挂载着当前要读取的剧本配置或缓存）。" },
+  "LiveCamera": {
+    "_comment": "3D运镜摄像机。",
+    "TurnBase": {
+      "TargetObjectBase": {
+        "TargetObject": { "_comment": "相机聚焦点。" },
+        "EyeTarget0": { "_comment": "眼球视线追踪点。" }
+      }
+    }
+  },
+  "FaderCanvas": {
+    "_comment": "新发现：一个全局的黑屏/白屏转场画布，层级极高，用于覆盖住所有 UI 甚至系统弹窗的转场。"
+  }
+}

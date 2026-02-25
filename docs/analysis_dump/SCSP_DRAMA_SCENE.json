@@ -1,0 +1,110 @@
+{
+  "GlobalPhysicsObject": { "_comment": "全局物理系统。" },
+  "IAPUtil": { "_comment": "应用内购。" },
+  "AnalyticsContainer": { "_comment": "数据分析埋点。" },
+  "[DOTween]": { "_comment": "UI动画驱动核心。" },
+  "CRIWARE": { "_comment": "音视频中间件底层。" },
+  "SoundManager": { "_comment": "游戏音频调度器。" },
+  "StopWatchObject": { "_comment": "计时器或性能分析组件。" },
+  "SceneTransitionManager(Clone)": { "_comment": "场景切换大管家。" },
+  "PRISMMain(Clone)": { "_comment": "系统级UI主控节点。" },
+  "EventSystem": { "_comment": "UI点击事件分发系统。" },
+  "MainThreadDispatcher": { "_comment": "主线程任务调度器。" },
+  "OutGameMain": { "_comment": "局外系统主入口。" },
+  "UI": {
+    "_comment": "系统级界面根节点",
+    "UICanvas": {
+      "DisplayGroup": {
+        "DramaLauncherView": { "_comment": "核心变化点：当前激活的界面是【剧情/MV启动器】或者【正在播放剧情】的底层UI视图！" }
+      }
+    }
+  },
+  "s44_01010199_00": {
+    "_comment": "惊人的发现！这是【剧情演出系统（Drama System）】的特定剧本实例根节点。's44_01010199_00' 应该是这一话剧情的内部编号。游戏采用了将整个剧本打包成一个巨型Prefab并在运行时实例化的架构。",
+    "Handler": {
+      "_comment": "剧情逻辑处理器集群。这些脚本负责解析剧情指令并控制播放。",
+      "OperationHandler": { "_comment": "操作处理器。处理玩家的点击（如跳过、快进、自动播放）。" },
+      "TimeHandler": { "_comment": "时间处理器。控制剧情播放的速度和时间轴（Timeline）推进。" },
+      "ChoiceHandler": { "_comment": "选项处理器。负责处理剧情中出现的分支选项（比如制作人的不同回答）。" },
+      "JumpHandler": { "_comment": "跳转处理器。处理剧情段落之间的跳转（如跳过已读剧情）。" },
+      "SoundHandler": { "_comment": "声音处理器。精准控制特定帧的语音、音效播放。" },
+      "PhysicsHandler": { "_comment": "物理处理器。可能用于在剧情特定时刻关闭/开启物理飘动，防止穿模。" }
+    },
+    "Cameras": {
+      "_comment": "剧情专属摄像机栈（Camera Stack）。",
+      "MainCamera": { "_comment": "渲染3D场景的主摄像机。" },
+      "OverlayEffectCamera": { "_comment": "叠加特效摄像机。用于渲染全屏泛光或特殊材质。" },
+      "CaptureOverlayCamera": { "_comment": "截屏叠加摄像机。可能用于剧情中实现'定格画面'或'回忆闪回'特效。" },
+      "UICamera": { "_comment": "专门渲染剧情UI（如对话框）的摄像机。" }
+    },
+    "Directional Light": { "_comment": "剧情场景的主光源。" },
+    "Volume": { "_comment": "剧情专属后期处理体积（如用于回想场景的黑白/高曝光滤镜）。" },
+    "Render3DManager": { "_comment": "3D渲染参数管理器。" },
+    "CanvasRoot": {
+      "_comment": "剧情内UI画布的总根节点。",
+      "3dOverlayCanvas": {
+        "DramaFadePanel": { "_comment": "在3D空间中渲染的淡入淡出黑屏/白屏遮罩。" }
+      },
+      "CaptureOverlayCanvas": {
+        "RawImage": { "_comment": "用于显示通过 CaptureOverlayCamera 截取的画面。" }
+      },
+      "UICanvas": {
+        "DramaUIViewRoot": { "_comment": "真正的剧情UI视图根节点（包含底部的对话文字框、角色名字牌等）。" },
+        "LetterBoxRoot": { "_comment": "信箱模式黑边。就是看电影时上下出现的黑色遮幅，用来增强电影感。" }
+      },
+      "DebugInformationCanvas": { "_comment": "开发者调试信息画布（打包时未剔除的开发期残留）。" }
+    },
+    "Contents": {
+      "_comment": "剧情的具体内容物（演员、场景、道具、特效）。",
+      "Audios": {
+        "_comment": "剧情内调用的独立音源。",
+        "Se 0": { "_comment": "音效(Sound Effect)" },
+        "Voice 0": { "_comment": "角色配音(Voice)" },
+        "Bgm 0": { "_comment": "背景音乐(BGM)" },
+        "Env 1": { "_comment": "环境音(Environment Sound，如雨声、蝉鸣)" }
+      },
+      "CinemachineCameras": {
+        "_comment": "核心亮点：电影级运镜摄像机组！游戏大量使用了 Unity 官方的 Cinemachine 插件。这里的 s1c1(Scene 1 Camera 1) 代表了分镜机位，剧情就是通过在这些机位之间不断切换（Cut）来实现电影级别的演出的。",
+        "s1c0": { "_comment": "分镜 1 - 机位 0" },
+        "2D": { "_comment": "可能是专用于拍平面的2D机位" },
+        "flashback_1": { "_comment": "专门用于'闪回/回忆'演出的分镜机位 1" }
+      },
+      "Characters": {
+        "_comment": "登场演员（3D角色模型）。注意：由于日文 Shift-JIS 编码在输出时被识别成了其他编码，这里产生了乱码（Mojibake），我为你进行了还原。",
+        "鐪熶箖_銈兗銉囥偅銈枫儳銉?": { "_comment": "还原：【真乃_オーディション】 (真乃_试镜)。这是樱木真乃穿试镜服装的模型。" },
+        "鐪熶箖_銈兗銉囥偅銈枫儳銉砡銈广儐銉笺偢": { "_comment": "还原：【真乃_オーディション_ステージ】 (真乃_试镜_舞台)。" },
+        "鐪熶箖_鍥炴兂": { "_comment": "还原：【真乃_回想】 (真乃_回忆/闪回)。可能用不同的打光或材质展示回忆中的真乃。" },
+        "鐪熶箖_杌婂唴": { "_comment": "还原：【真乃_車内】 (真乃_车内)。" },
+        "銉椼儹銉囥儱銉笺偟銉?": { "_comment": "还原：【プロデューサー】 (制作人 / Producer)。也就是玩家角色的3D模型（可能只是个不露脸的人模）。" }
+      },
+      "Props": {
+        "_comment": "场景道具（用于剧情交互的小物件）。",
+        "1213 鐪熶箖銈广優銉?": { "_comment": "还原：【1213 真乃スマホ】 (真乃的智能手机)。用于剧情中看手机或接电话的演出。" },
+        "瀵╂熁鍝″腑": { "_comment": "还原：【審査員席】 (评委/审查员席位)。结合前面的'试镜'，这里大概率是试镜评委的桌子。" },
+        "LookAt鐢?": { "_comment": "还原：【LookAt用】。这是一个看不见的空节点，用于作为角色视线（LookAt）注视的目标点。" },
+        "DofTarget": { "_comment": "Depth of Field (景深) 焦点目标。用一个空节点告诉后处理相机：'把焦距对准我，我之外的背景都模糊掉'。" }
+      },
+      "BgModels": {
+        "_comment": "场景背景模型。剧情可能跨越了多个地点，所以这里预加载了一堆背景模型并在演出时动态切换显示/隐藏。",
+        "BgModel_0266": { "_comment": "背景ID：0266" },
+        "BgModel_0250": { "_comment": "背景ID：0250" }
+      },
+      "Effects": {
+        "_comment": "剧情特效。",
+        "MagicaWindZone": { "_comment": "物理风场。用于吹动角色的头发和裙子。" },
+        "ef_Cfx_000_Petals_CherryBlossom_A11": { "_comment": "VFX：樱花花瓣飘落特效（CherryBlossom）。" },
+        "銇俱仼鍙嶅皠": { "_comment": "还原：【まど反射】 (窗户反射)。用于处理玻璃的倒影渲染。" },
+        "鍙嶅皠鐢ㄣ偒銉°儵_閺?": { "_comment": "还原：【反射用カメラ_鏡】 (反射用摄像机_镜子)。用单独的摄像机拍摄并渲染镜子里的画面（这是一种非常消耗性能但真实的镜面反射实现手法）。" }
+      }
+    },
+    "ForEditorPreview": {
+      "_comment": "仅供 Unity Editor 预览的节点（理论上打包发布时不该起作用）。",
+      "DebugUICanvas": {
+        "DramaSceneGuidelines": { "_comment": "剧情分镜辅助线（如九宫格、三分线），用于辅助动画师或导演在编辑器里调参构图。" }
+      }
+    },
+    "MagicaGroundPlane": {
+      "_comment": "物理引擎的地板碰撞面。防止角色的衣服物理结算时穿模掉进地下。"
+    }
+  }
+}
