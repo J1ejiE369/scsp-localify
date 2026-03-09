@@ -27,8 +27,10 @@ namespace SCLocal {
 		std::string internalName;
 		int characterId = 0;
 		std::string cueName;
-		SubtitleConfig config;
 	};
+
+	// Global configuration for subtitles
+	extern SubtitleConfig g_subtitle_config;
 
 	void loadLocalTrans();
 	bool getLocalifyText(const std::string& category, int id, std::string* getStr);
@@ -55,7 +57,7 @@ namespace SCLocal {
 	/**
 	 * @brief 尝试导出字幕数据 (Dump)
 	 */
-	bool tryDumpSubtitle(
+	bool dumpSubtitle(
 		const std::string& scenarioId,
 		const std::string& uuid,
 		const std::string& originalText,

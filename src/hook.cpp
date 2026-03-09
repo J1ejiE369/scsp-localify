@@ -1619,6 +1619,10 @@ namespace
 	std::pair<std::wstring, std::string> lastLrc{};
 	HOOK_ORIG_TYPE TimelineController_SetLyric_orig;
 	void TimelineController_SetLyric_hook(void* _this, Il2CppString* text) {
+		if (!text) {
+			return HOOK_CAST_CALL(void, TimelineController_SetLyric)(_this, text);
+		}
+
 		const std::wstring origWstr(text->start_char);
 		std::string newText = "";
 		if (!origWstr.empty()) {
@@ -1743,6 +1747,13 @@ namespace
 
 	HOOK_ORIG_TYPE ScenarioManager_Init_orig;
 	void* ScenarioManager_Init_hook(void* retstr, void* _this, Il2CppString* scrName) {
+		if (scrName) {
+			std::string scenarioId = scrName->ToUtf8String();
+			SCLocal::SetDumpingScenarioId(scenarioId);
+			if (g_debugMode) {
+				printf("[Scenario] Init: %s\n", scenarioId.c_str());
+			}
+		}
 		// printf("ScenarioManager_Init: %ls\n%ls\n\n", scrName->start_char, environment_get_stacktrace()->start_char);
 		return HOOK_CAST_CALL(void*, ScenarioManager_Init)(retstr, _this, scrName);
 	}
@@ -1819,25 +1830,14 @@ namespace
 	HOOK_ORIG_TYPE DepthOfFieldClip_CreatePlayable_orig;
 	HOOK_ORIG_TYPE DramaSubtitlePlayableAsset_CreatePlayable_orig;
 
-	/*
-	// InjectTimelineTranslation is redundant as we hook CreatePlayable.
-	// Kept for reference but disabled.
-	void InjectTimelineTranslation(void* timelineAsset) {
-		// ... (Implementation commented out) ...
-	}
-	*/
-	
-	// Hook Logic Functions
-	void TryApplyTranslation(void* _this) {
-		// 1. 查找关键类符号 (只查找一次)
+	void ApplyTranslation(void* _this) {
+		// 1. Find key class symbol (search only once)
 		static auto DramaSubtitlePlayableAsset_klass = il2cpp_symbols::get_class("PRISM.Interactions.Drama.dll", "PRISM.Interactions.Drama", "DramaSubtitlePlayableAsset");
 		if (!DramaSubtitlePlayableAsset_klass) {
 			DramaSubtitlePlayableAsset_klass = il2cpp_symbols::get_class("PRISM.Legacy.dll", "PRISM.Interactions.Drama", "DramaSubtitlePlayableAsset");
 		}
 
-		// [诊断 A] 如果连类都找不到，后续全废。必须报警。
 		if (!DramaSubtitlePlayableAsset_klass) {
-			if (g_debugMode) printf("[CRITICAL] Failed to find class: DramaSubtitlePlayableAsset!\n");
 			return;
 		}
 
@@ -1863,7 +1863,7 @@ namespace
 					static auto talkerName_field = il2cpp_class_get_field_from_name(behaviour_klass, "talkerName");
 					if (!talkerName_field) talkerName_field = il2cpp_class_get_field_from_name(behaviour_klass, "_talkerName");
 
-					// [V3] New Fields
+					// [V2] New Fields
 					static auto mstCharacterInfoId_field = il2cpp_class_get_field_from_name(behaviour_klass, "mstCharacterInfoId");
 					if (!mstCharacterInfoId_field) mstCharacterInfoId_field = il2cpp_class_get_field_from_name(behaviour_klass, "_mstCharacterInfoId");
 					static auto cueName_field = il2cpp_class_get_field_from_name(behaviour_klass, "cueName");
@@ -1876,7 +1876,7 @@ namespace
 						if (uniqueIdStr) {
 							std::string uidStr = uniqueIdStr->ToUtf8String();
 
-							// [诊断 C] 既然类匹配了，ID找到了，必须打印出来
+							// [Diagnostic C] Target found, log UUID
 							if (g_debugMode) printf("[Target Found] UUID: %s\n", uidStr.c_str());
 
 							SCLocal::SubtitleData subData;
@@ -1932,7 +1932,7 @@ namespace
 							}
 
 							// Dump Logic (Encapsulated)
-							SCLocal::tryDumpSubtitle(
+							SCLocal::dumpSubtitle(
 								SCLocal::GetDumpingScenarioId(),
 								uidStr,
 								originalText,
@@ -1964,8 +1964,14 @@ namespace
 		}
 	}
 
-	void* DepthOfFieldClip_CreatePlayable_hook(void* retstr, void* _this, void* graph, void* go, void* mtd) {
-		TryApplyTranslation(_this);
+	void* Shared_CreatePlayable_hook(void* retstr, void* _this, void* graph, void* go, void* mtd) {
+		// if (g_debugMode) {
+		// 	printf("[Hook] Shared_CreatePlayable_hook called! _this: %p\n", _this);
+		// 	auto k = il2cpp_symbols::get_class_from_instance(_this);
+		// 	if (k) printf("[Hook] Instance Class: %s\n", il2cpp_class_get_name(k));
+		// }
+
+		ApplyTranslation(_this);
 
 		if (g_enable_free_camera) {
 			static auto DepthOfFieldClip_klass = il2cpp_symbols::get_class("PRISM.Legacy.dll", "PRISM", "DepthOfFieldClip");
@@ -1977,27 +1983,30 @@ namespace
 				static auto DepthOfFieldBehaviour_aperture_field = il2cpp_class_get_field_from_name(DepthOfFieldBehaviour_klass, "aperture");
 				static auto DepthOfFieldBehaviour_focalLength_field = il2cpp_class_get_field_from_name(DepthOfFieldBehaviour_klass, "focalLength");
 				auto depthOfFieldBehaviour = il2cpp_symbols::read_field(_this, DepthOfFieldClip_behaviour_field);
-				/*
-				auto focusDistance = il2cpp_symbols::read_field<float>(depthOfFieldBehaviour, DepthOfFieldBehaviour_focusDistance_field);
-				auto aperture = il2cpp_symbols::read_field<float>(depthOfFieldBehaviour, DepthOfFieldBehaviour_aperture_field);
-				auto focalLength = il2cpp_symbols::read_field<float>(depthOfFieldBehaviour, DepthOfFieldBehaviour_focalLength_field);
-				*/
 
 				// invalid values from game version v2.6.1 and crash at the original call; bypass temporarily
-				// il2cpp_symbols::write_field(depthOfFieldBehaviour, DepthOfFieldBehaviour_focusDistance_field, 1000.0f);
-				// il2cpp_symbols::write_field(depthOfFieldBehaviour, DepthOfFieldBehaviour_aperture_field, 32.0f);
-				// il2cpp_symbols::write_field(depthOfFieldBehaviour, DepthOfFieldBehaviour_focalLength_field, 1.0f);
-
-				// printf("DepthOfFieldClip_CreatePlayable, focusDistance: %f, aperture: %f, focalLength: %f\n", focusDistance, aperture, focalLength);
 			}
 		}
-		return HOOK_CAST_CALL(void*, DepthOfFieldClip_CreatePlayable)(retstr, _this, graph, go, mtd);
-	}
 
-	// Wrapper for DramaSubtitlePlayableAsset::CreatePlayable hook to ensure it's caught even if not merged (ICF)
-	void DramaSubtitlePlayableAsset_CreatePlayable_hook(void* retstr, void* _this, void* graph, void* go, void* method) {
-		TryApplyTranslation(_this);
-		return HOOK_CAST_CALL(void*, DramaSubtitlePlayableAsset_CreatePlayable)(retstr, _this, graph, go, method);
+		// Since both origin pointers should point to the same original function if their addresses are shared,
+		// we can just call DepthOfFieldClip_CreatePlayable_orig. If they are different, we check the class.
+		static auto DramaSubtitlePlayableAsset_klass = il2cpp_symbols::get_class("PRISM.Interactions.Drama.dll", "PRISM.Interactions.Drama", "DramaSubtitlePlayableAsset");
+		if (!DramaSubtitlePlayableAsset_klass) {
+			DramaSubtitlePlayableAsset_klass = il2cpp_symbols::get_class("PRISM.Legacy.dll", "PRISM.Interactions.Drama", "DramaSubtitlePlayableAsset");
+		}
+		
+		auto this_klass = il2cpp_symbols::get_class_from_instance(_this);
+		if (this_klass == DramaSubtitlePlayableAsset_klass) {
+			if (DramaSubtitlePlayableAsset_CreatePlayable_orig) {
+				return reinterpret_cast<void*(*)(void*, void*, void*, void*, void*)>(DramaSubtitlePlayableAsset_CreatePlayable_orig)(retstr, _this, graph, go, mtd);
+			}
+		}
+
+		if (DepthOfFieldClip_CreatePlayable_orig) {
+			return reinterpret_cast<void*(*)(void*, void*, void*, void*, void*)>(DepthOfFieldClip_CreatePlayable_orig)(retstr, _this, graph, go, mtd);
+		}
+
+		return retstr;
 	}
 
 	// obsolete hook removed
@@ -2383,17 +2392,17 @@ namespace
 				}
 			}
 
-			// [New] F5 热重载轮询 (带防抖)
-			static bool f5_key_state = false;
-			if (GetAsyncKeyState(VK_F5) & 0x8000) {
-				if (!f5_key_state) {
-					f5_key_state = true;
-					printf("[HotKey] F5 pressed. Reloading translations...\n");
-					SCLocal::loadLocalTrans(); // 重载函数
+			// [New] Hot-reload polling (with debounce)
+			static bool reload_key_state = false;
+			if (GetAsyncKeyState(reloadKey) & 0x8000) {
+				if (!reload_key_state) {
+					reload_key_state = true;
+					printf("[HotKey] Reload key pressed. Reloading translations...\n");
+					SCLocal::loadLocalTrans(); // Reload function
 				}
 			}
 			else {
-				f5_key_state = false;
+				reload_key_state = false;
 			}
 		}
 		catch (std::exception& ex) {
@@ -3608,6 +3617,11 @@ namespace
 			"MagicaClothController", "Awake", 0
 		);
 
+		// [QA Probe] Force Debug Mode and Print Addresses
+		g_debugMode = true;
+		printf("[QA Probe] DepthOfFieldClip_CreatePlayable_addr: %p\n", DepthOfFieldClip_CreatePlayable_addr);
+		printf("[QA Probe] DramaSubtitlePlayableAsset_CreatePlayable_addr: %p\n", DramaSubtitlePlayableAsset_CreatePlayable_addr);
+
 #pragma endregion
 		ADD_HOOK(SetResolution, "SetResolution at %p");
 		ADD_HOOK_1(StoryExtensions_IsLocked);
@@ -3616,8 +3630,51 @@ namespace
 		ADD_HOOK(AssetBundle_LoadAsset, "AssetBundle_LoadAsset at %p");
 		ADD_HOOK(LiveMVOverlayView_UpdateLyrics, "LiveMVOverlayView_UpdateLyrics at %p");
 		ADD_HOOK(TimelineController_SetLyric, "TimelineController_SetLyric at %p");
-		ADD_HOOK(DepthOfFieldClip_CreatePlayable, "DepthOfFieldClip_CreatePlayable at %p");
-		ADD_HOOK(DramaSubtitlePlayableAsset_CreatePlayable, "DramaSubtitlePlayableAsset_CreatePlayable at %p");
+		
+		if (g_debugMode) {
+			printf("DepthOfFieldClip_CreatePlayable_addr: %p\n", DepthOfFieldClip_CreatePlayable_addr);
+			printf("DramaSubtitlePlayableAsset_CreatePlayable_addr: %p\n", DramaSubtitlePlayableAsset_CreatePlayable_addr);
+		}
+
+		if (DepthOfFieldClip_CreatePlayable_addr && DramaSubtitlePlayableAsset_CreatePlayable_addr &&
+			DepthOfFieldClip_CreatePlayable_addr == DramaSubtitlePlayableAsset_CreatePlayable_addr) {
+			// Addresses are the same, apply hook once to avoid crash
+#ifdef __SAFETYHOOK
+			AddSafetyHook("Shared_CreatePlayable", (void*)DepthOfFieldClip_CreatePlayable_addr, (void*)Shared_CreatePlayable_hook, DepthOfFieldClip_CreatePlayable_orig);
+			DramaSubtitlePlayableAsset_CreatePlayable_orig = DepthOfFieldClip_CreatePlayable_orig;
+#else
+			auto Shared_CreatePlayable_offset = reinterpret_cast<void*>(DepthOfFieldClip_CreatePlayable_addr);
+			const auto stat1 = MH_CreateHook(Shared_CreatePlayable_offset, Shared_CreatePlayable_hook, &DepthOfFieldClip_CreatePlayable_orig);
+			const auto stat2 = MH_EnableHook(Shared_CreatePlayable_offset);
+			DramaSubtitlePlayableAsset_CreatePlayable_orig = DepthOfFieldClip_CreatePlayable_orig;
+			printf("Shared_CreatePlayable at %p (%s, %s)\n", Shared_CreatePlayable_offset, MH_StatusToString((MH_STATUS)stat1), MH_StatusToString((MH_STATUS)stat2));
+#endif
+		}
+		else {
+			// Addresses differ or one is missing, apply to valid ones
+			if (DepthOfFieldClip_CreatePlayable_addr) {
+#ifdef __SAFETYHOOK
+				AddSafetyHook("DepthOfFieldClip_CreatePlayable", (void*)DepthOfFieldClip_CreatePlayable_addr, (void*)Shared_CreatePlayable_hook, DepthOfFieldClip_CreatePlayable_orig);
+#else
+				auto DepthOfFieldClip_offset = reinterpret_cast<void*>(DepthOfFieldClip_CreatePlayable_addr);
+				const auto stat1 = MH_CreateHook(DepthOfFieldClip_offset, Shared_CreatePlayable_hook, &DepthOfFieldClip_CreatePlayable_orig);
+				const auto stat2 = MH_EnableHook(DepthOfFieldClip_offset);
+				printf("DepthOfFieldClip_CreatePlayable at %p (%s, %s)\n", DepthOfFieldClip_offset, MH_StatusToString((MH_STATUS)stat1), MH_StatusToString((MH_STATUS)stat2));
+#endif
+			}
+
+			if (DramaSubtitlePlayableAsset_CreatePlayable_addr) {
+#ifdef __SAFETYHOOK
+				AddSafetyHook("DramaSubtitlePlayableAsset_CreatePlayable", (void*)DramaSubtitlePlayableAsset_CreatePlayable_addr, (void*)Shared_CreatePlayable_hook, DramaSubtitlePlayableAsset_CreatePlayable_orig);
+#else
+				auto DramaSubtitle_offset = reinterpret_cast<void*>(DramaSubtitlePlayableAsset_CreatePlayable_addr);
+				const auto stat3 = MH_CreateHook(DramaSubtitle_offset, Shared_CreatePlayable_hook, &DramaSubtitlePlayableAsset_CreatePlayable_orig);
+				const auto stat4 = MH_EnableHook(DramaSubtitle_offset);
+				printf("DramaSubtitlePlayableAsset_CreatePlayable at %p (%s, %s)\n", DramaSubtitle_offset, MH_StatusToString((MH_STATUS)stat3), MH_StatusToString((MH_STATUS)stat4));
+#endif
+			}
+		}
+
 		ADD_HOOK(get_baseCamera, "get_baseCamera at %p");
 		ADD_HOOK(Unity_get_position, "Unity_get_position at %p");
 		ADD_HOOK(Unity_set_position, "Unity_set_position at %p");

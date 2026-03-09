@@ -1,6 +1,7 @@
 #include <stdinclude.hpp>
 
 namespace SCLocal {
+	SubtitleConfig g_subtitle_config;
 	namespace {
 		std::unordered_map<std::string, std::unordered_map<int, std::string>> localTrans{};
 		std::unordered_map<std::string, std::string> lrcTrans{};
@@ -49,19 +50,12 @@ namespace SCLocal {
 		if (item.contains("original")) data.original = item["original"];
 		else if (item.contains("jp_text")) data.original = item["jp_text"];
 
-		// Config
-		if (item.contains("config")) {
-			const auto& cfg = item["config"];
-			data.config.zhSize = cfg.value("zhSize", 38);
-			data.config.jpSize = cfg.value("jpSize", 24);
-			data.config.lineSpacing = cfg.value("lineSpacing", -10);
-			data.config.zhLineHeight = cfg.value("zhLineHeight", 100);
-			data.config.jpLineHeight = cfg.value("jpLineHeight", 100);
-			data.config.dualMode = cfg.value("dualMode", g_dual_mode);
+		// [Fix] If dualMode is disabled globally, clear the original text in memory
+		// This ensures formatSubtitle won't even see the original text
+		if (!g_subtitle_config.dualMode) {
+			data.original.clear();
 		}
-		else {
-			data.config.dualMode = g_dual_mode;
-		}
+
 		return data;
 	}
 
@@ -184,29 +178,18 @@ namespace SCLocal {
 		return false;
 	}
 
-	std::vector<std::wstring> split(const std::wstring& text, wchar_t delimiter) {
-		std::vector<std::wstring> parts;
-		std::wstring::size_type start = 0;
-		std::wstring::size_type end = text.find(delimiter);
-		while (end != std::wstring::npos) {
+	template <typename T>
+	std::vector<std::basic_string<T>> split(const std::basic_string<T>& text, T delimiter) {
+		std::vector<std::basic_string<T>> parts;
+		typename std::basic_string<T>::size_type start = 0;
+		typename std::basic_string<T>::size_type end = text.find(delimiter);
+		while (end != std::basic_string<T>::npos) {
 			parts.push_back(text.substr(start, end - start));
 			start = end + 1;
 			end = text.find(delimiter, start);
 		}
 		parts.push_back(text.substr(start));
 		return parts;
-	}
-
-	std::vector<std::string> splitString(const std::string& str) {
-		std::vector<std::string> lines;
-		std::string::size_type pos = 0;
-		std::string::size_type prev = 0;
-		while ((pos = str.find('\n', prev)) != std::string::npos) {
-			lines.push_back(str.substr(prev, pos - prev));
-			prev = pos + 1;
-		}
-		lines.push_back(str.substr(prev));
-		return lines;
 	}
 
 	std::filesystem::path splitFatherDirectoryByUnderline(const std::wstring& name) {
@@ -375,9 +358,9 @@ namespace SCLocal {
 	}
 
 	std::string formatSubtitle(const SubtitleData& data) {
-		if (data.config.dualMode && !data.original.empty()) {
-			auto zhLines = splitString(data.translation);
-			auto jpLines = splitString(data.original);
+		if (g_subtitle_config.dualMode && !data.original.empty()) {
+			auto zhLines = split(data.translation, '\n');
+			auto jpLines = split(data.original, '\n');
 
 			std::string combinedText;
 			combinedText.reserve(data.translation.size() + data.original.size() + 100);
@@ -390,7 +373,7 @@ namespace SCLocal {
 				jpLine.erase(std::remove(jpLine.begin(), jpLine.end(), '\r'), jpLine.end());
 
 				combinedText += std::format("<line-height={}%><nobr><size={}><color=#CCCCCC>{}</color></size></nobr></line-height>",
-					data.config.jpLineHeight, data.config.jpSize, jpLine);
+					g_subtitle_config.jpLineHeight, g_subtitle_config.jpSize, jpLine);
 			}
 
 			// 2. Format Translation Text Block
@@ -401,10 +384,10 @@ namespace SCLocal {
 				zhLine.erase(std::remove(zhLine.begin(), zhLine.end(), '\r'), zhLine.end());
 
 				// Apply line spacing as negative offset for the first line
-				float currentVOffset = (i == 0) ? -((float)data.config.lineSpacing / 100.0f) : 0.0f;
+				float currentVOffset = (i == 0) ? -((float)g_subtitle_config.lineSpacing / 100.0f) : 0.0f;
 
 				combinedText += std::format("<voffset={}em><line-height={}%><nobr><size={}>{}</size></nobr></line-height></voffset>",
-					currentVOffset, data.config.zhLineHeight, data.config.zhSize, zhLine);
+					currentVOffset, g_subtitle_config.zhLineHeight, g_subtitle_config.zhSize, zhLine);
 			}
 
 			return combinedText;
@@ -433,26 +416,36 @@ namespace SCLocal {
 			size_t secondUnderscore = uuid.find('_', 4);
 			if (secondUnderscore != std::string::npos) {
 				std::string index = uuid.substr(4, secondUnderscore - 4);
-				if (index.length() == 4) {
-					dumpPath = g_localify_base / "translate_data" / prefix / index;
+				if (index.length() >= 4) { // Allow 4 or more digits (e.g. 0126 or 01260199)
+					std::string subFolder = index.substr(0, 4); // Use first 4 digits as folder
+					dumpPath = g_localify_base / "translate_data" / prefix / subFolder;
 					
 					// Handle special multi-section cases like s42
 					if (prefix == "s42" && uuid.length() >= 15) {
 						dumpFileName = uuid.substr(0, 15);
 					} else {
-						dumpFileName = uuid.substr(0, secondUnderscore + 5); // sXX_XXXXXX
-						if (dumpFileName.length() != 12) dumpFileName = uuid.substr(0, 12);
+						// For 8-digit index like 01260199, we might want to use the whole index as filename part
+						// or keep the original logic if it was intended for sXX_XXXXXX format.
+						// Assuming standard format is sXX_XXXXXX... -> filename sXX_XXXXXX
+						
+						// If index is 8 chars (01260199), dumpFileName should probably be s44_01260199
+						dumpFileName = uuid.substr(0, secondUnderscore); 
 					}
 				}
 			}
 		}
 		
+		// If standard format didn't yield a filename and scenarioId is provided, use scenarioId
 		if (dumpFileName == "dump_unknown" && !scenarioId.empty()) {
 			dumpFileName = scenarioId;
 		}
 
 		std::filesystem::create_directories(dumpPath);
 		std::filesystem::path filePath = dumpPath / (dumpFileName + ".json");
+
+		if (g_debugMode) {
+			printf("[Dump] Target Path: %ls\n", filePath.c_str());
+		}
 
 		nlohmann::ordered_json jsonArray;
 		if (std::filesystem::exists(filePath)) {
@@ -487,13 +480,6 @@ namespace SCLocal {
 				// Ensure structure exists
 				if (!item.contains("speaker")) item["speaker"] = nlohmann::ordered_json::object();
 				if (!item.contains("voice")) item["voice"] = nlohmann::ordered_json::object();
-				if (!item.contains("config")) {
-					item["config"] = {
-						{"zhSize", 38}, {"jpSize", 24}, {"lineSpacing", -10},
-						{"zhLineHeight", 100}, {"jpLineHeight", 100}, {"dualMode", g_dual_mode}
-					};
-					modified = true;
-				}
 
 				updateIfChanged(item["speaker"], "name", name);
 				updateIfChanged(item["speaker"], "internalName", internalName);
@@ -502,6 +488,7 @@ namespace SCLocal {
 				
 				// Cleanup legacy fields
 				if (item.contains("name")) { item.erase("name"); modified = true; }
+				if (item.contains("config")) { item.erase("config"); modified = true; } // Cleanup old config field
 
 				break;
 			}
@@ -518,10 +505,6 @@ namespace SCLocal {
 			newItem["voice"] = { {"cueName", cueName} };
 			newItem["original"] = original;
 			newItem["translation"] = "";
-			newItem["config"] = {
-				{"zhSize", 38}, {"jpSize", 24}, {"lineSpacing", -10},
-				{"zhLineHeight", 100}, {"jpLineHeight", 100}, {"dualMode", g_dual_mode}
-			};
 			
 			jsonArray.push_back(newItem);
 			modified = true;
@@ -529,8 +512,14 @@ namespace SCLocal {
 
 		if (modified) {
 			try {
-				std::ofstream outFile(filePath);
+				std::ofstream outFile(filePath, std::ios::binary);
+				if (!outFile.is_open()) {
+					printf("[Dump] ERROR: Could not open file for writing: %ls\n", filePath.c_str());
+					return false;
+				}
 				outFile << jsonArray.dump(2);
+				outFile.close();
+				if (g_debugMode) printf("[Dump] Successfully wrote to: %ls\n", filePath.c_str());
 				return true;
 			} catch (std::exception& e) {
 				printf("[Dump] Failed to write %s: %s\n", filePath.string().c_str(), e.what());
@@ -553,7 +542,7 @@ namespace SCLocal {
 		return g_dumpingScenarioId;
 	}
 
-	bool tryDumpSubtitle(
+	bool dumpSubtitle(
 		const std::string& scenarioId,
 		const std::string& uuid,
 		const std::string& originalText,
