@@ -2,6 +2,8 @@
 #include <rapidjson/error/en.h>
 #include <Psapi.h> // For GetModuleHandleEx, GetModuleFileName
 
+#include <conio.h>
+
 namespace debug {
 	void DumpRelationMemoryHex(const void* target, const size_t length)
 	{
@@ -149,6 +151,11 @@ void LogException(EXCEPTION_POINTERS* ep) {
 	debug::DumpRegisters();
 }
 
+LONG WINAPI seh_filter(EXCEPTION_POINTERS* ep) {
+	LogException(ep);
+	return EXCEPTION_EXECUTE_HANDLER;
+}
+
 LONG WINAPI GlobalCrashHandler(EXCEPTION_POINTERS* ep) {
 	// Ensure console exists
 	if (!GetConsoleWindow()) {
@@ -161,11 +168,9 @@ LONG WINAPI GlobalCrashHandler(EXCEPTION_POINTERS* ep) {
 	LogException(ep);
 
 	std::cerr << "\n[FATAL] Program is about to crash. Execution frozen." << std::endl;
-	std::cerr << "Press Ctrl+C to terminate." << std::endl;
+	std::cerr << "Press any key to pass exception to Unity crash handler..." << std::endl;
 
-	while (true) {
-		Sleep(1000);
-	}
+	_getch();
 
 	return EXCEPTION_CONTINUE_SEARCH;
 }

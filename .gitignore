@@ -58,5 +58,10 @@ temp_*
 *_REPORT.md
 *_SUMMARY.md
 *_COMPARISON.md
-e --show-toplevel
-tatus
+
+# Reverse Analysis & Temporary Dumps (Ignored in localization branch)
+docs/analysis_dump/
+docs.7z
+docs.zip
+diff_hook.txt
+stdinclude_main.cpp

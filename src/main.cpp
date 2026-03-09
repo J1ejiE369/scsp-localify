@@ -27,12 +27,13 @@ bool g_enable_console = true;
 bool g_auto_dump_all_json = false;
 bool g_dump_untrans_lyrics = false;
 bool g_dump_untrans_unlocal = false;
-bool g_dual_mode = true;
+bool g_dual_mode = true; // Legacy, kept for compatibility if needed elsewhere
 int g_max_fps = 60;
 int g_vsync_count = 0;
 float g_3d_resolution_scale = 1.0f;
 std::string g_custom_font_path = "";
 char hotKey = 'u';
+char reloadKey = VK_F5;
 float g_font_size_offset = -3.0f;
 
 bool g_enable_free_camera = false;
@@ -167,6 +168,8 @@ namespace
 
 		if (!document.HasParseError())
 		{
+			bool configModified = false;
+
 			if (document.HasMember("enableVSync")) {
 				if (document["enableVSync"].GetBool()) {
 					g_vsync_count = 1;
@@ -194,9 +197,28 @@ namespace
 			if (document.HasMember("hotKey")) {
 				hotKey = document["hotKey"].GetString()[0];
 			}
+			
+			if (document.HasMember("reloadKey")) {
+				reloadKey = document["reloadKey"].GetString()[0];
+			} else {
+				// Add missing reloadKey
+				std::string s(1, reloadKey);
+				document.AddMember("reloadKey", rapidjson::Value(s.c_str(), document.GetAllocator()), document.GetAllocator());
+				configModified = true;
+			}
+
 			if (document.HasMember("autoDumpAllJson")) {
 				g_auto_dump_all_json = document["autoDumpAllJson"].GetBool();
 			}
+
+			if (document.HasMember("autoDumpSubtitle")) {
+				g_isDumping = document["autoDumpSubtitle"].GetBool();
+			} else {
+				// Add missing autoDumpSubtitle
+				document.AddMember("autoDumpSubtitle", g_isDumping, document.GetAllocator());
+				configModified = true;
+			}
+
 			if (document.HasMember("dumpUntransLyrics")) {
 				g_dump_untrans_lyrics = document["dumpUntransLyrics"].GetBool();
 			}
@@ -204,7 +226,8 @@ namespace
 				g_dump_untrans_unlocal = document["dumpUntransLocal2"].GetBool();
 			}
 			if (document.HasMember("dualMode")) {
-				g_dual_mode = document["dualMode"].GetBool();
+				SCLocal::g_subtitle_config.dualMode = document["dualMode"].GetBool();
+				g_dual_mode = SCLocal::g_subtitle_config.dualMode; // Sync with legacy global
 			}
 			if (document.HasMember("extraAssetBundlePath")) {
 				logs.push_back("[WARNING] Option `extraAssetBundlePath` is obsolete. Use `asset_bundle_path::asset_path` to specify an asset.\n");
@@ -293,6 +316,14 @@ namespace
 			READ_JSON_FLOAT(magicacloth_limitAngle);
 			READ_JSON_FLOAT(magicacloth_springLimitDistance);
 			READ_JSON_FLOAT(magicacloth_springNoise);
+
+			if (configModified) {
+				config_stream.close(); // Close input stream before writing
+				std::ofstream ofs(ConfigJson);
+				rapidjson::OStreamWrapper osw(ofs);
+				rapidjson::PrettyWriter<rapidjson::OStreamWrapper> writer(osw);
+				document.Accept(writer);
+			}
 		}
 
 		config_stream.close();

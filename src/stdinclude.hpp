@@ -33,6 +33,7 @@
 #include <rapidjson/stringbuffer.h>
 #include <rapidjson/ostreamwrapper.h>
 #include <rapidjson/writer.h>
+#include <rapidjson/prettywriter.h>
 
 #include "il2cpp/il2cpp_symbols.hpp"
 #include "reflection.hpp"
@@ -78,9 +79,9 @@
 
 #define PRINT(var) std::cout << #var << " = " << var << std::endl;
 #define PRINT_ONCE(_txt_var_) static bool __print_once_##_txt_var_ = [] { PRINT(_txt_var_); return true; }();
-// LONG WINAPI seh_filter(EXCEPTION_POINTERS* ep); // Removed
+LONG WINAPI seh_filter(EXCEPTION_POINTERS* ep);
 void InstallCrashHandler();
-// #define __EXCEPT(strContext) __except (seh_filter(GetExceptionInformation())) { std::cout << "SEH exception detected in '" << strContext << "'.\n"; } // Removed
+#define __EXCEPT(strContext) __except (seh_filter(GetExceptionInformation())) { std::cout << "SEH exception detected in '" << strContext << "'.\n"; }
 
 
 namespace debug {
@@ -332,6 +333,7 @@ extern bool g_dual_mode;
 extern std::string g_custom_font_path;
 extern std::filesystem::path g_localify_base;
 extern char hotKey;
+extern char reloadKey;
 extern bool g_enable_free_camera;
 extern bool g_block_out_of_focus;
 extern float g_free_camera_mouse_speed;
