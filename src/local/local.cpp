@@ -1,7 +1,6 @@
 #include <stdinclude.hpp>
 
 namespace SCLocal {
-	SubtitleConfig g_subtitle_config;
 	namespace {
 		std::unordered_map<std::string, std::unordered_map<int, std::string>> localTrans{};
 		std::unordered_map<std::string, std::string> lrcTrans{};
@@ -406,36 +405,29 @@ namespace SCLocal {
 	) {
 		if (uuid.empty()) return false;
 
-		// Determine dump path based on UUID format
+		// Determine dump path based on UUID format (dynamic split by '_', no hardcoded indices)
 		std::string dumpFileName = "dump_unknown";
 		std::filesystem::path dumpPath = g_localify_base / "translate_data" / "misc";
 
-		// Standard format: sXX_XXXX...
-		if (uuid.length() >= 8 && uuid[0] == 's' && uuid[3] == '_') {
-			std::string prefix = uuid.substr(0, 3);
-			size_t secondUnderscore = uuid.find('_', 4);
-			if (secondUnderscore != std::string::npos) {
-				std::string index = uuid.substr(4, secondUnderscore - 4);
-				if (index.length() >= 4) { // Allow 4 or more digits (e.g. 0126 or 01260199)
-					std::string subFolder = index.substr(0, 4); // Use first 4 digits as folder
-					dumpPath = g_localify_base / "translate_data" / prefix / subFolder;
-					
-					// Handle special multi-section cases like s42
-					if (prefix == "s42" && uuid.length() >= 15) {
-						dumpFileName = uuid.substr(0, 15);
-					} else {
-						// For 8-digit index like 01260199, we might want to use the whole index as filename part
-						// or keep the original logic if it was intended for sXX_XXXXXX format.
-						// Assuming standard format is sXX_XXXXXX... -> filename sXX_XXXXXX
-						
-						// If index is 8 chars (01260199), dumpFileName should probably be s44_01260199
-						dumpFileName = uuid.substr(0, secondUnderscore); 
-					}
+		size_t pos1 = uuid.find('_');
+		if (pos1 != std::string::npos && pos1 > 0) {
+			std::string prefix = uuid.substr(0, pos1);
+			size_t pos2 = uuid.find('_', pos1 + 1);
+			if (pos2 != std::string::npos) {
+				std::string subFolder = uuid.substr(pos1 + 1, pos2 - pos1 - 1);
+				if (subFolder.length() >= 4) {
+					dumpPath = g_localify_base / "translate_data" / prefix / subFolder.substr(0, 4);
+					dumpFileName = uuid.substr(0, pos2);
+				}
+			} else {
+				std::string afterFirst = uuid.substr(pos1 + 1);
+				if (afterFirst.length() >= 4) {
+					dumpPath = g_localify_base / "translate_data" / prefix / afterFirst.substr(0, 4);
+					dumpFileName = uuid;
 				}
 			}
 		}
-		
-		// If standard format didn't yield a filename and scenarioId is provided, use scenarioId
+
 		if (dumpFileName == "dump_unknown" && !scenarioId.empty()) {
 			dumpFileName = scenarioId;
 		}

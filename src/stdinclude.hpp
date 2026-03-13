@@ -38,6 +38,15 @@
 #include "il2cpp/il2cpp_symbols.hpp"
 #include "reflection.hpp"
 
+struct SubtitleConfig {
+	int zhSize = 38;
+	int jpSize = 24;
+	int lineSpacing = -10;
+	int zhLineHeight = 100;
+	int jpLineHeight = 100;
+	bool dualMode = true;
+};
+
 #include <nlohmann/json.hpp>
 #include <cpprest/uri.h>
 #include <cpprest/http_listener.h>
@@ -329,11 +338,11 @@ extern bool g_enable_console;
 extern bool g_auto_dump_all_json;
 extern bool g_dump_untrans_lyrics;
 extern bool g_dump_untrans_unlocal;
-extern bool g_dual_mode;
+extern SubtitleConfig g_subtitle_config;
 extern std::string g_custom_font_path;
 extern std::filesystem::path g_localify_base;
 extern char hotKey;
-extern char reloadKey;
+extern int reloadKey;
 extern bool g_enable_free_camera;
 extern bool g_block_out_of_focus;
 extern float g_free_camera_mouse_speed;

@@ -7,6 +7,7 @@
 #include <thread>
 #include <format>
 #include <functional>
+#include <map>
 #include <WinUser.h>
 #include "camera/camera.hpp"
 
@@ -16,6 +17,7 @@ extern std::function<void()> g_on_close;
 namespace MHotkey{
     namespace {
         HHOOK hKeyboardHook;
+        std::map<int, std::function<void()>> g_hotkey_callbacks;
         bool is_uma = false;
         char hotk = 'u';
         std::string extPluginPath = "";
@@ -41,6 +43,10 @@ namespace MHotkey{
 
     void SetKeyCallBack(std::function<void(int, DWORD, DWORD, DWORD, DWORD, DWORD, DWORD, DWORD, DWORD)> callbackfun) {
         mKeyBoardCallBack = callbackfun;
+    }
+
+    void RegisterHotkey(int key, std::function<void()> callback) {
+        if (key != 0) g_hotkey_callbacks[key] = std::move(callback);
     }
 
     bool check_file_exist(const std::string& name) {
@@ -117,6 +123,11 @@ namespace MHotkey{
         case WM_SYSKEYDOWN:
         case WM_KEYDOWN: {
             int key = wParam;
+
+            {
+                auto it = g_hotkey_callbacks.find(key);
+                if (it != g_hotkey_callbacks.end() && it->second) it->second();
+            }
 
             if (mKeyBoardRawCallBack != nullptr) mKeyBoardRawCallBack(uMsg, key);
             SHIFT_key = GetAsyncKeyState(VK_SHIFT);

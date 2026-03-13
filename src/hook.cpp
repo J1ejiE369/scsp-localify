@@ -23,14 +23,14 @@ bool needPrintStack = false;
 bool g_debugMode = true;
 // Dump Module Globals
 bool g_isDumping = true;
-//开启则启动自动dump
+// Enable auto-dump when true
 std::string g_dumpingScenarioId = "";
 std::set<std::string> g_dumpedUUIDs;
 
 std::vector<std::pair<std::pair<int, int>, int>> replaceDressResIds{};
 std::map<std::string, CharaParam_t> charaParam{};
 CharaParam_t baseParam(0.0f, 0.0f, 0.0f, 0.0f, 0.0f);
-std::vector<std::function<bool()>> mainThreadTasks{};  // 返回 true，执行后移除列表；返回 false，执行后不移除
+std::vector<std::function<bool()>> mainThreadTasks{};  // Return true to remove after execution; false to keep
 
 std::map<int, CharaSwayStringParam_t> charaSwayStringOffset{};
 std::map<int, std::string> swayTypes{
@@ -505,9 +505,9 @@ namespace
 		{
 			replaceFont = il2cpp_gchandle_get_target(ReplaceFontGcHandle);
 
-			// 加载场景时会被 Resources.UnloadUnusedAssets 干掉，且不受 DontDestroyOnLoad 影响，暂且判断是否存活，并在必要的时候重新加载
-			// TODO: 考虑挂载到 GameObject 上
-			// AssetBundle 不会被干掉
+			// Replaced font can be unloaded by Resources.UnloadUnusedAssets and is not affected by DontDestroyOnLoad; check if alive and reload when needed
+			// TODO: Consider attaching to a GameObject
+			// AssetBundle itself won't be unloaded
 			if (Object_IsNativeObjectAlive(replaceFont))
 			{
 				return replaceFont;
@@ -542,7 +542,7 @@ namespace
 
 	std::filesystem::path dumpBasePath("dumps");
 
-	// 调用之前检查 DataFile_IsKeyExist
+	// Call DataFile_IsKeyExist before invoking
 	void fmtAndDumpJsonBytesData(const std::wstring& dumpName) {
 		const auto dumpNameIl = il2cpp_symbols::NewWStr(dumpName);
 		auto dataBytes = (reinterpret_cast<void* (*)(Il2CppString*)>HOOK_GET_ORIG(DataFile_GetBytes))(dumpNameIl);
@@ -555,7 +555,7 @@ namespace
 			writeWstr.replace(pos, 1, replaceStr);
 			pos = writeWstr.find(searchStr, pos + replaceStr.length());
 		}
-		if (writeWstr.ends_with(L",]")) {  // 代哥的 Json 就是不一样
+		if (writeWstr.ends_with(L",]")) {  // Game's JSON format quirk: trailing comma before ]
 			writeWstr.erase(writeWstr.length() - 2, 1);
 		}
 		const auto dumpLocalFilePath = dumpBasePath / SCLocal::getFilePathByName(dumpName, true, dumpBasePath);
@@ -629,7 +629,7 @@ namespace
 		catch (std::exception& e) {
 			printf("dumpScenarioFromCatalog error: %s\n", e.what());
 		}
-		// 下方方法已过时
+		// Fallback below is obsolete
 		int totalCount = 0;
 		const auto titleData = nlohmann::json::parse(localizationDataCache);
 		for (auto& it : titleData.items()) {
@@ -1706,7 +1706,7 @@ namespace
 				}
 			}
 			else {
-				// set_Text(_this, il2cpp_symbols::NewWStr(std::format(L"(接口l){}", std::wstring(origText->start_char))));
+				// set_Text(_this, il2cpp_symbols::NewWStr(std::format(L"(interface){}", std::wstring(origText->start_char))));
 			}
 		}
 
@@ -1830,137 +1830,123 @@ namespace
 	HOOK_ORIG_TYPE DepthOfFieldClip_CreatePlayable_orig;
 	HOOK_ORIG_TYPE DramaSubtitlePlayableAsset_CreatePlayable_orig;
 
-	void ApplyTranslation(void* _this) {
-		// 1. Find key class symbol (search only once)
+	struct DramaSubtitleContext {
+		bool isValid = false;
+		std::string uidStr;
+		std::string originalText;
+		std::string charName;
+		std::string internalName;
+		int charId = 0;
+		std::string cueName;
+		void* behaviour = nullptr;
+		FieldInfo* textField = nullptr;
+	};
+
+	DramaSubtitleContext ExtractSubtitleContext(void* _this) {
+		DramaSubtitleContext ctx;
 		static auto DramaSubtitlePlayableAsset_klass = il2cpp_symbols::get_class("PRISM.Interactions.Drama.dll", "PRISM.Interactions.Drama", "DramaSubtitlePlayableAsset");
 		if (!DramaSubtitlePlayableAsset_klass) {
 			DramaSubtitlePlayableAsset_klass = il2cpp_symbols::get_class("PRISM.Legacy.dll", "PRISM.Interactions.Drama", "DramaSubtitlePlayableAsset");
 		}
-
-		if (!DramaSubtitlePlayableAsset_klass) {
-			return;
-		}
+		if (!DramaSubtitlePlayableAsset_klass) return ctx;
 
 		auto this_klass = il2cpp_symbols::get_class_from_instance(_this);
+		if (this_klass != DramaSubtitlePlayableAsset_klass) return ctx;
 
-		if (this_klass == DramaSubtitlePlayableAsset_klass) {
-			// Extract Data
-			static auto behaviour_field = il2cpp_class_get_field_from_name(DramaSubtitlePlayableAsset_klass, "behaviour");
-			if (!behaviour_field) behaviour_field = il2cpp_class_get_field_from_name(DramaSubtitlePlayableAsset_klass, "m_Template");
+		static auto behaviour_field = il2cpp_class_get_field_from_name(DramaSubtitlePlayableAsset_klass, "behaviour");
+		if (!behaviour_field) behaviour_field = il2cpp_class_get_field_from_name(DramaSubtitlePlayableAsset_klass, "m_Template");
+		if (!behaviour_field) return ctx;
 
-			if (behaviour_field) {
-				auto behaviour = il2cpp_field_get_value_object(behaviour_field, _this);
-				if (behaviour) {
-					static auto behaviour_klass = il2cpp_symbols::get_class_from_instance(behaviour);
-					static auto uniqueId_field = il2cpp_class_get_field_from_name(behaviour_klass, "uniqueId");
-					if (!uniqueId_field) uniqueId_field = il2cpp_class_get_field_from_name(behaviour_klass, "uuid");
-					static auto text_field = il2cpp_class_get_field_from_name(behaviour_klass, "text");
-					if (!text_field) text_field = il2cpp_class_get_field_from_name(behaviour_klass, "_text");
+		auto behaviour = il2cpp_field_get_value_object(behaviour_field, _this);
+		if (!behaviour) return ctx;
 
-					// Character Name Fields
-					static auto displayTalkerName_field = il2cpp_class_get_field_from_name(behaviour_klass, "displayTalkerName");
-					if (!displayTalkerName_field) displayTalkerName_field = il2cpp_class_get_field_from_name(behaviour_klass, "_displayTalkerName");
-					static auto talkerName_field = il2cpp_class_get_field_from_name(behaviour_klass, "talkerName");
-					if (!talkerName_field) talkerName_field = il2cpp_class_get_field_from_name(behaviour_klass, "_talkerName");
+		static auto behaviour_klass = il2cpp_symbols::get_class_from_instance(behaviour);
+		static auto uniqueId_field = il2cpp_class_get_field_from_name(behaviour_klass, "uniqueId");
+		if (!uniqueId_field) uniqueId_field = il2cpp_class_get_field_from_name(behaviour_klass, "uuid");
+		static auto text_field = il2cpp_class_get_field_from_name(behaviour_klass, "text");
+		if (!text_field) text_field = il2cpp_class_get_field_from_name(behaviour_klass, "_text");
+		static auto displayTalkerName_field = il2cpp_class_get_field_from_name(behaviour_klass, "displayTalkerName");
+		if (!displayTalkerName_field) displayTalkerName_field = il2cpp_class_get_field_from_name(behaviour_klass, "_displayTalkerName");
+		static auto talkerName_field = il2cpp_class_get_field_from_name(behaviour_klass, "talkerName");
+		if (!talkerName_field) talkerName_field = il2cpp_class_get_field_from_name(behaviour_klass, "_talkerName");
+		static auto mstCharacterInfoId_field = il2cpp_class_get_field_from_name(behaviour_klass, "mstCharacterInfoId");
+		if (!mstCharacterInfoId_field) mstCharacterInfoId_field = il2cpp_class_get_field_from_name(behaviour_klass, "_mstCharacterInfoId");
+		static auto cueName_field = il2cpp_class_get_field_from_name(behaviour_klass, "cueName");
+		if (!cueName_field) cueName_field = il2cpp_class_get_field_from_name(behaviour_klass, "_cueName");
 
-					// [V2] New Fields
-					static auto mstCharacterInfoId_field = il2cpp_class_get_field_from_name(behaviour_klass, "mstCharacterInfoId");
-					if (!mstCharacterInfoId_field) mstCharacterInfoId_field = il2cpp_class_get_field_from_name(behaviour_klass, "_mstCharacterInfoId");
-					static auto cueName_field = il2cpp_class_get_field_from_name(behaviour_klass, "cueName");
-					if (!cueName_field) cueName_field = il2cpp_class_get_field_from_name(behaviour_klass, "_cueName");
+		if (!uniqueId_field || !text_field) return ctx;
 
-					if (uniqueId_field && text_field) {
-						Il2CppString* uniqueIdStr = nullptr;
-						il2cpp_field_get_value(behaviour, uniqueId_field, &uniqueIdStr);
+		Il2CppString* uniqueIdStr = nullptr;
+		il2cpp_field_get_value(behaviour, uniqueId_field, &uniqueIdStr);
+		if (!uniqueIdStr) return ctx;
 
-						if (uniqueIdStr) {
-							std::string uidStr = uniqueIdStr->ToUtf8String();
+		ctx.uidStr = uniqueIdStr->ToUtf8String();
+		ctx.behaviour = behaviour;
+		ctx.textField = text_field;
 
-							// [Diagnostic C] Target found, log UUID
-							if (g_debugMode) printf("[Target Found] UUID: %s\n", uidStr.c_str());
+		Il2CppString* textStr = nullptr;
+		il2cpp_field_get_value(behaviour, text_field, &textStr);
+		ctx.originalText = textStr ? textStr->ToUtf8String() : "";
 
-							SCLocal::SubtitleData subData;
-							bool isTranslated = SCLocal::getSubtitle(uidStr, subData);
-
-							// Extract Original Text
-							Il2CppString* textStr = nullptr;
-							il2cpp_field_get_value(behaviour, text_field, &textStr);
-							std::string originalText = textStr ? textStr->ToUtf8String() : "";
-
-							// Extract Character Name (displayTalkerName)
-							std::string charName = "Unknown";
-							bool foundName = false;
-							if (displayTalkerName_field) {
-								Il2CppString* nameIl = nullptr;
-								il2cpp_field_get_value(behaviour, displayTalkerName_field, &nameIl);
-								if (nameIl) {
-									std::string n = nameIl->ToUtf8String();
-									if (!n.empty()) {
-										charName = n;
-										foundName = true;
-									}
-								}
-							}
-
-							// Extract Internal Talker Name (talkerName)
-							std::string internalName = "";
-							if (talkerName_field) {
-								Il2CppString* nameIl = nullptr;
-								il2cpp_field_get_value(behaviour, talkerName_field, &nameIl);
-								if (nameIl) {
-									internalName = nameIl->ToUtf8String();
-									if (!foundName && !internalName.empty()) {
-										charName = internalName; // Fallback for display name
-									}
-								}
-							}
-
-							// Extract Character ID
-							int charId = 0;
-							if (mstCharacterInfoId_field) {
-								il2cpp_field_get_value(behaviour, mstCharacterInfoId_field, &charId);
-							}
-
-							// Extract Voice Cue Name
-							std::string cueName = "";
-							if (cueName_field) {
-								Il2CppString* cueIl = nullptr;
-								il2cpp_field_get_value(behaviour, cueName_field, &cueIl);
-								if (cueIl) {
-									cueName = cueIl->ToUtf8String();
-								}
-							}
-
-							// Dump Logic (Encapsulated)
-							SCLocal::dumpSubtitle(
-								SCLocal::GetDumpingScenarioId(),
-								uidStr,
-								originalText,
-								charName,
-								internalName,
-								charId,
-								cueName
-							);
-
-							if (isTranslated) {
-								if (g_debugMode) printf("Translating Drama Subtitle: %s -> %s\n", uidStr.c_str(), subData.translation.c_str());
-
-								std::string finalText = SCLocal::formatSubtitle(subData);
-								if (g_debugMode) printf("Final Formatted Text: %s\n", finalText.c_str());
-
-								auto wTranslation = utility::conversions::to_utf16string(finalText);
-								auto str = il2cpp_string_new_utf16((const wchar_t*)wTranslation.c_str(), wTranslation.length());
-								
-								// Use project style write_field
-								il2cpp_symbols::write_field(behaviour, text_field, str);
-							}
-							else {
-								if (g_debugMode) printf("[Miss] No translation for: %s\n", uidStr.c_str());
-							}
-						}
-					}
-				}
+		ctx.charName = "Unknown";
+		bool foundName = false;
+		if (displayTalkerName_field) {
+			Il2CppString* nameIl = nullptr;
+			il2cpp_field_get_value(behaviour, displayTalkerName_field, &nameIl);
+			if (nameIl) {
+				std::string n = nameIl->ToUtf8String();
+				if (!n.empty()) { ctx.charName = n; foundName = true; }
 			}
+		}
+		if (talkerName_field) {
+			Il2CppString* nameIl = nullptr;
+			il2cpp_field_get_value(behaviour, talkerName_field, &nameIl);
+			if (nameIl) {
+				ctx.internalName = nameIl->ToUtf8String();
+				if (!foundName && !ctx.internalName.empty()) ctx.charName = ctx.internalName;
+			}
+		}
+		if (mstCharacterInfoId_field) {
+			il2cpp_field_get_value(behaviour, mstCharacterInfoId_field, &ctx.charId);
+		}
+		if (cueName_field) {
+			Il2CppString* cueIl = nullptr;
+			il2cpp_field_get_value(behaviour, cueName_field, &cueIl);
+			if (cueIl) ctx.cueName = cueIl->ToUtf8String();
+		}
+
+		ctx.isValid = true;
+		return ctx;
+	}
+
+	void ApplyTranslation(void* _this) {
+		auto ctx = ExtractSubtitleContext(_this);
+		if (!ctx.isValid) return;
+
+		if (g_debugMode) printf("[Target Found] UUID: %s\n", ctx.uidStr.c_str());
+
+		SCLocal::SubtitleData subData;
+		bool isTranslated = SCLocal::getSubtitle(ctx.uidStr, subData);
+
+		SCLocal::dumpSubtitle(
+			SCLocal::GetDumpingScenarioId(),
+			ctx.uidStr,
+			ctx.originalText,
+			ctx.charName,
+			ctx.internalName,
+			ctx.charId,
+			ctx.cueName
+		);
+
+		if (isTranslated) {
+			if (g_debugMode) printf("Translating Drama Subtitle: %s -> %s\n", ctx.uidStr.c_str(), subData.translation.c_str());
+			std::string finalText = SCLocal::formatSubtitle(subData);
+			if (g_debugMode) printf("Final Formatted Text: %s\n", finalText.c_str());
+			auto wTranslation = utility::conversions::to_utf16string(finalText);
+			auto str = il2cpp_string_new_utf16((const wchar_t*)wTranslation.c_str(), wTranslation.length());
+			il2cpp_symbols::write_field(ctx.behaviour, ctx.textField, str);
+		} else {
+			if (g_debugMode) printf("[Miss] No translation for: %s\n", ctx.uidStr.c_str());
 		}
 	}
 
@@ -2039,7 +2025,7 @@ namespace
 	//	HOOK_CAST_CALL(void, PostProcess_DepthOfFieldClip_CreatePlayable)(retstr, _this, graph, go, mtd);
 	//}
 
-	// 已过时
+	// Obsolete
 	HOOK_ORIG_TYPE Live_SetEnableDepthOfField_orig;
 	void Live_SetEnableDepthOfField_hook(void* _this, bool isEnable) {
 		if (g_enable_free_camera) {
@@ -2048,7 +2034,7 @@ namespace
 		return HOOK_CAST_CALL(void, Live_SetEnableDepthOfField)(_this, isEnable);
 	}
 
-	// 未hook
+	// Not hooked (placeholder)
 	HOOK_ORIG_TYPE Live_Update_orig;
 	void Live_Update_hook(void* _this) {
 		HOOK_CAST_CALL(void, Live_Update)(_this);
@@ -2109,7 +2095,7 @@ namespace
 
 
 	HOOK_ORIG_TYPE LiveCostumeChangeModel_GetDress_orig;
-	void* LiveCostumeChangeModel_GetDress_hook(void* _this, int id) {  // 替换服装 ResID
+	void* LiveCostumeChangeModel_GetDress_hook(void* _this, int id) {  // Replace costume ResID
 		auto ret = HOOK_CAST_CALL(void*, LiveCostumeChangeModel_GetDress)(_this, id);
 		if (!g_unlock_all_dress) return ret;
 		if (!ret) {
@@ -2126,7 +2112,7 @@ namespace
 	}
 
 	HOOK_ORIG_TYPE LiveCostumeChangeModel_GetAccessory_orig;
-	void* LiveCostumeChangeModel_GetAccessory_hook(void* _this, int id) {  // 替换饰品 ResID
+	void* LiveCostumeChangeModel_GetAccessory_hook(void* _this, int id) {  // Replace accessory ResID
 		auto ret = HOOK_CAST_CALL(void*, LiveCostumeChangeModel_GetAccessory)(_this, id);
 		if (!(g_unlock_all_dress && g_unlock_all_headwear)) return ret;
 		if (!ret) {
@@ -2163,7 +2149,7 @@ namespace
 	}
 
 	HOOK_ORIG_TYPE LiveCostumeChangeModel_GetHairstyle_orig;
-	void* LiveCostumeChangeModel_GetHairstyle_hook(void* _this, int id) {  // 替换头发 ResID
+	void* LiveCostumeChangeModel_GetHairstyle_hook(void* _this, int id) {  // Replace hairstyle ResID
 		auto ret = HOOK_CAST_CALL(void*, LiveCostumeChangeModel_GetHairstyle)(_this, id);
 		if (!(g_unlock_all_dress && g_unlock_all_headwear)) return ret;
 		if (!ret) {
@@ -2205,7 +2191,7 @@ namespace
 	std::map<int, void*> cacheAccessoryMap{};
 
 	HOOK_ORIG_TYPE LiveCostumeChangeModel_ctor_orig;
-	void LiveCostumeChangeModel_ctor_hook(void* _this, void* reply, void* idol, int costumeType, bool forceDressOrdered) {  // 添加服装到 dressDic
+	void LiveCostumeChangeModel_ctor_hook(void* _this, void* reply, void* idol, int costumeType, bool forceDressOrdered) {  // Add costume to dressDic
 		/*
 		static auto iidol_klass = il2cpp_symbols::get_class_from_instance(idol);
 		static auto get_CharacterId_mtd = il2cpp_class_get_method_from_name(iidol_klass, "get_CharacterId", 0);
@@ -2391,19 +2377,6 @@ namespace
 					it = mainThreadTasks.erase(it);
 				}
 			}
-
-			// [New] Hot-reload polling (with debounce)
-			static bool reload_key_state = false;
-			if (GetAsyncKeyState(reloadKey) & 0x8000) {
-				if (!reload_key_state) {
-					reload_key_state = true;
-					printf("[HotKey] Reload key pressed. Reloading translations...\n");
-					SCLocal::loadLocalTrans(); // Reload function
-				}
-			}
-			else {
-				reload_key_state = false;
-			}
 		}
 		catch (std::exception& ex) {
 			printf("MainThreadDispatcher Error: %s\n", ex.what());
@@ -2443,7 +2416,7 @@ namespace
 	}
 
 	HOOK_ORIG_TYPE dic_int_ICostumeStatus_add_orig;
-	void dic_int_ICostumeStatus_add_hook(void* _this, int key, void* value, MethodInfo* method) {  // 添加服装到缓存表(失效)
+	void dic_int_ICostumeStatus_add_hook(void* _this, int key, void* value, MethodInfo* method) {  // Add costume to cache table (obsolete)
 		if ((g_unlock_all_dress || g_allow_use_tryon_costume) && confirmationingModel) checkAndAddCostume(key, value);
 		return HOOK_CAST_CALL(void, dic_int_ICostumeStatus_add)(_this, key, value, method);
 	}
@@ -2472,7 +2445,7 @@ namespace
 	}
 
 	HOOK_ORIG_TYPE GetCostumeListReply_get_CostumeList_orig;
-	void* GetCostumeListReply_get_CostumeList_hook(void* _this) {  // 添加服装到缓存表
+	void* GetCostumeListReply_get_CostumeList_hook(void* _this) {  // Add costume to cache table
 		auto ret = HOOK_CAST_CALL(void*, GetCostumeListReply_get_CostumeList)(_this);
 		checkCostumeListReply(_this, ret, "mstCostumeId_");
 		return ret;
@@ -2480,14 +2453,14 @@ namespace
 
 	// The first registered auto getter
 	HOOK_ORIG_TYPE GetCostumeListReply_get_HairstyleList_orig;
-	void* GetCostumeListReply_get_HairstyleList_hook(void* _this) {  // 添加服装到缓存表
+	void* GetCostumeListReply_get_HairstyleList_hook(void* _this) {  // Add costume to cache table
 		auto ret = HOOK_CAST_CALL(void*, GetCostumeListReply_get_HairstyleList)(_this);
 		checkCostumeListReply(_this, ret, "mstHairstyleId_");
 		return ret;
 	}
 
 	HOOK_ORIG_TYPE GetCostumeListReply_get_AccessoryList_orig;
-	void* GetCostumeListReply_get_AccessoryList_hook(void* _this) {  // 添加服装到缓存表
+	void* GetCostumeListReply_get_AccessoryList_hook(void* _this) {  // Add costume to cache table
 		auto ret = HOOK_CAST_CALL(void*, GetCostumeListReply_get_AccessoryList)(_this);
 		checkCostumeListReply(_this, ret, "mstAccessoryId_");
 		return ret;
@@ -2584,7 +2557,7 @@ namespace
 
 	HOOK_ORIG_TYPE LiveMVUnit_GetMemberChangeRequestData_orig;
 	void* LiveMVUnit_GetMemberChangeRequestData_hook(void* _this, int position, void* idol, int exchangePosition) {
-		if (g_allow_same_idol) {  // 此方法已过时
+		if (g_allow_same_idol) {  // Obsolete path
 			exchangePosition = -1;
 		}
 		return HOOK_CAST_CALL(void*, LiveMVUnit_GetMemberChangeRequestData)(_this, position, idol, exchangePosition);
@@ -3779,6 +3752,16 @@ bool init_hook()
 		};
 
 	mh_inited = true;
+
+	if (reloadKey != 0) {
+		MHotkey::RegisterHotkey(reloadKey, []() {
+			mainThreadTasks.push_back([]() {
+				printf("[HotKey] Reload key pressed. Reloading translations...\n");
+				SCLocal::loadLocalTrans();
+				return true;
+			});
+		});
+	}
 
 	MH_CreateHook(LoadLibraryW, load_library_w_hook, &load_library_w_orig);
 	MH_EnableHook(LoadLibraryW);
