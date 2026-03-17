@@ -49,6 +49,7 @@
 | 3DResolutionScale          | Float                                    | `1.0`                                  | 3D 渲染分辨率倍率                                    |
 | localifyBasePath           | String                                   | `scsp_localify`                        | 本地化文件目录                                       |
 | hotKey                     | String (Char)                            | `u`                                    | 按下 `Ctrl` + 此项配置的热键，**打开插件 GUI**       |
+| reloadKey                  | String / Int                             | `"F5"`                                  | 热重载快捷键（如 `"F5"` 或 `116`），按下后重载汉化数据；设为 `0` 禁用 |
 | dumpUntransLyrics          | Bool                                     | `false`                                | dump 未翻译的歌词                                    |
 | dumpUntransLocal2          | Bool                                     | `false`                                | dump 未翻译的文本                                    |
 | autoDumpAllJson            | Bool                                     | `false`                                | dump 所有游戏加载的 JSON                             |

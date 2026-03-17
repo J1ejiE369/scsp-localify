@@ -27,11 +27,13 @@ bool g_enable_console = true;
 bool g_auto_dump_all_json = false;
 bool g_dump_untrans_lyrics = false;
 bool g_dump_untrans_unlocal = false;
+SubtitleConfig g_subtitle_config;
 int g_max_fps = 60;
 int g_vsync_count = 0;
 float g_3d_resolution_scale = 1.0f;
 std::string g_custom_font_path = "";
 char hotKey = 'u';
+int reloadKey = VK_F5;  // Default F5. Set to 0 to disable; non-zero = virtual key code for hot-reload
 float g_font_size_offset = -3.0f;
 
 bool g_enable_free_camera = false;
@@ -157,76 +159,128 @@ namespace
 	{
 		std::ifstream config_stream{ ConfigJson };
 		std::vector<std::string> dicts{};
-
-		if (!config_stream.is_open())
-			return dicts;
-
-		rapidjson::IStreamWrapper wrapper{ config_stream };
 		rapidjson::Document document;
 
-		document.ParseStream(wrapper);
+		// If the config file does not exist, the plugin auto-creates it. When adding new config fields
+		// in future updates, we won't need to bundle the config file in the release.
+		if (!config_stream.is_open()) {
+			document.SetObject();
+		} else {
+			rapidjson::IStreamWrapper wrapper{ config_stream };
+			document.ParseStream(wrapper);
+			config_stream.close();
+		}
 
 		if (!document.HasParseError())
 		{
-			if (document.HasMember("showStartCommand") && document["showStartCommand"].GetBool()) {
-				showStartCommand = true;
-			}
-			if (document.HasMember("enableVSync")) {
-				if (document["enableVSync"].GetBool()) {
-					g_vsync_count = 1;
-				}
-				else {
-					g_vsync_count = 0;
-				}
-			}
-			if (document.HasMember("vSyncCount")) {
-				g_vsync_count = document["vSyncCount"].GetInt();
-			}
-			if (document.HasMember("maxFps")) {
-				g_max_fps = document["maxFps"].GetInt();
-			}
-			if (document.HasMember("3DResolutionScale")) {
-				g_3d_resolution_scale = document["3DResolutionScale"].GetFloat();
+			bool configModified = false;
+			if (document.ObjectEmpty()) configModified = true;
+
+#define CONFIG_BOOL(key, var) \
+			if (document.HasMember(key)) { \
+				var = document[key].GetBool(); \
+			} else { \
+				document.AddMember(key, var, document.GetAllocator()); \
+				configModified = true; \
 			}
 
-			if (document.HasMember("enableConsole")) {
-				g_enable_console = document["enableConsole"].GetBool();
+			CONFIG_BOOL("showStartCommand", showStartCommand);
+
+#define CONFIG_INT(key, var) \
+			if (document.HasMember(key)) { \
+				var = document[key].GetInt(); \
+			} else { \
+				document.AddMember(key, var, document.GetAllocator()); \
+				configModified = true; \
 			}
-			if (document.HasMember("localifyBasePath")) {
-				g_localify_base = document["localifyBasePath"].GetString();
+
+#define CONFIG_FLOAT(key, var) \
+			if (document.HasMember(key)) { \
+				var = document[key].GetFloat(); \
+			} else { \
+				document.AddMember(key, var, document.GetAllocator()); \
+				configModified = true; \
 			}
-			if (document.HasMember("hotKey")) {
-				hotKey = document["hotKey"].GetString()[0];
+
+#define CONFIG_STRING(key, var) \
+			if (document.HasMember(key)) { \
+				var = document[key].GetString(); \
+			} else { \
+				document.AddMember(key, rapidjson::Value(var.c_str(), document.GetAllocator()), document.GetAllocator()); \
+				configModified = true; \
 			}
-			if (document.HasMember("autoDumpAllJson")) {
-				g_auto_dump_all_json = document["autoDumpAllJson"].GetBool();
+
+			if (document.HasMember("enableVSync")) {
+				bool enableVSync = document["enableVSync"].GetBool();
+				g_vsync_count = enableVSync ? 1 : 0;
+			} else {
+				document.AddMember("enableVSync", g_vsync_count > 0, document.GetAllocator());
+				configModified = true;
 			}
-			if (document.HasMember("dumpUntransLyrics")) {
-				g_dump_untrans_lyrics = document["dumpUntransLyrics"].GetBool();
+			
+			CONFIG_INT("vSyncCount", g_vsync_count);
+			CONFIG_INT("maxFps", g_max_fps);
+			CONFIG_FLOAT("3DResolutionScale", g_3d_resolution_scale);
+			CONFIG_BOOL("enableConsole", g_enable_console);
+			
+			std::string localifyBasePathStr = g_localify_base.string();
+			CONFIG_STRING("localifyBasePath", localifyBasePathStr);
+			g_localify_base = localifyBasePathStr;
+
+			std::string hotKeyStr(1, hotKey);
+			CONFIG_STRING("hotKey", hotKeyStr);
+			if (!hotKeyStr.empty()) hotKey = hotKeyStr[0];
+			
+			// reloadKey: default F5. Set to 0 to disable hot-reload.
+			if (document.HasMember("reloadKey")) {
+				const auto& v = document["reloadKey"];
+				if (v.IsInt()) {
+					reloadKey = v.GetInt();
+				} else if (v.IsString()) {
+					const char* s = v.GetString();
+					size_t len = v.GetStringLength();
+					if (!s || len == 0) {
+						reloadKey = 0;
+					} else if (len == 1) {
+						reloadKey = (unsigned char)s[0];
+					} else if (len == 3 && (s[0] == 'F' || s[0] == 'f') && s[1] == '1' && s[2] >= '0' && s[2] <= '2') {
+						reloadKey = VK_F10 + (s[2] - '0');
+					} else if (len == 2 && (s[0] == 'F' || s[0] == 'f') && s[1] >= '1' && s[1] <= '9') {
+						reloadKey = VK_F1 + (s[1] - '1');
+					} else {
+						reloadKey = 0;
+					}
+				} else {
+					reloadKey = 0;
+				}
+			} else {
+				reloadKey = VK_F5;
+				document.AddMember("reloadKey", rapidjson::Value("F5", document.GetAllocator()), document.GetAllocator());
+				configModified = true;
 			}
-			if (document.HasMember("dumpUntransLocal2")) {
-				g_dump_untrans_unlocal = document["dumpUntransLocal2"].GetBool();
-			}
+
+			CONFIG_BOOL("autoDumpAllJson", g_auto_dump_all_json);
+			CONFIG_BOOL("autoDumpSubtitle", g_isDumping);
+			CONFIG_BOOL("dumpUntransLyrics", g_dump_untrans_lyrics);
+			CONFIG_BOOL("dumpUntransLocal2", g_dump_untrans_unlocal);
+			
+			CONFIG_BOOL("dualMode", g_subtitle_config.dualMode);
+
 			if (document.HasMember("extraAssetBundlePath")) {
 				logs.push_back("[WARNING] Option `extraAssetBundlePath` is obsolete. Use `asset_bundle_path::asset_path` to specify an asset.\n");
 			}
 			if (document.HasMember("extraAssetBundlePaths")) {
 				logs.push_back("[WARNING] Option `extraAssetBundlePaths` is obsolete. Use `asset_bundle_path::asset_path` to specify an asset.\n");
 			}
-			if (document.HasMember("customFontPath")) {
-				g_custom_font_path = document["customFontPath"].GetString();
-				if (g_custom_font_path.find("::") == std::string::npos) {
-					logs.push_back("[WARNING] Option `customFontPath` is set by old style; the font is assumed to be inside the default bundle. Use `asset_bundle_path::asset_path` to specify an asset.\n");
-					g_custom_font_path = "scsp_localify/scsp-bundle::" + g_custom_font_path;
-				}
-			}
-			if (document.HasMember("fontSizeOffset")) {
-				g_font_size_offset = document["fontSizeOffset"].GetFloat();
+			
+			CONFIG_STRING("customFontPath", g_custom_font_path);
+			if (g_custom_font_path.find("::") == std::string::npos && !g_custom_font_path.empty()) {
+				logs.push_back("[WARNING] Option `customFontPath` is set by old style; the font is assumed to be inside the default bundle. Use `asset_bundle_path::asset_path` to specify an asset.\n");
+				g_custom_font_path = "scsp_localify/scsp-bundle::" + g_custom_font_path;
 			}
 
-			if (document.HasMember("blockOutOfFocus")) {
-				g_block_out_of_focus = document["blockOutOfFocus"].GetBool();
-			}
+			CONFIG_FLOAT("fontSizeOffset", g_font_size_offset);
+			CONFIG_BOOL("blockOutOfFocus", g_block_out_of_focus);
 
 			if (document.HasMember("baseFreeCamera")) {
 				const auto& freeCamConfig = document["baseFreeCamera"];
@@ -241,26 +295,35 @@ namespace
 						g_free_camera_mouse_speed = freeCamConfig["mouseSpeed"].GetFloat();
 					}
 				}
+			} else {
+				rapidjson::Value freeCamConfig(rapidjson::kObjectType);
+				freeCamConfig.AddMember("enable", g_enable_free_camera, document.GetAllocator());
+				freeCamConfig.AddMember("moveStep", BaseCamera::moveStep * 1000, document.GetAllocator());
+				freeCamConfig.AddMember("mouseSpeed", g_free_camera_mouse_speed, document.GetAllocator());
+				document.AddMember("baseFreeCamera", freeCamConfig, document.GetAllocator());
+				configModified = true;
 			}
 
-			if (document.HasMember("allowUseTryOnCostume")) {
-				g_allow_use_tryon_costume = document["allowUseTryOnCostume"].GetBool();
-			}
-			if (document.HasMember("allowSameIdol")) {
-				g_allow_same_idol = document["allowSameIdol"].GetBool();
-			}
-			if (document.HasMember("saveAndReplaceCostumeChanges")) {
-				g_save_and_replace_costume_changes = document["saveAndReplaceCostumeChanges"].GetBool();
-			}
-			if (document.HasMember("unlockPIdolAndSCharaEvents")) {
-				g_unlock_PIdol_and_SChara_events = document["unlockPIdolAndSCharaEvents"].GetBool();
-			}
+			CONFIG_BOOL("allowUseTryOnCostume", g_allow_use_tryon_costume);
+			CONFIG_BOOL("allowSameIdol", g_allow_same_idol);
+			CONFIG_BOOL("saveAndReplaceCostumeChanges", g_save_and_replace_costume_changes);
+			CONFIG_BOOL("unlockPIdolAndSCharaEvents", g_unlock_PIdol_and_SChara_events);
 
 			if (document.HasMember("startResolution")) {
 				auto& startResolution = document["startResolution"];
 				g_start_resolution_w = startResolution["w"].GetInt();
 				g_start_resolution_h = startResolution["h"].GetInt();
 				g_start_resolution_fullScreen = startResolution["isFull"].GetBool();
+			} else {
+				rapidjson::Value startResolution(rapidjson::kObjectType);
+				startResolution.AddMember("w", 1280, document.GetAllocator());
+				startResolution.AddMember("h", 720, document.GetAllocator());
+				startResolution.AddMember("isFull", false, document.GetAllocator());
+				document.AddMember("startResolution", startResolution, document.GetAllocator());
+				configModified = true;
+				// Update globals just in case they were -1
+				if (g_start_resolution_w == -1) g_start_resolution_w = 1280;
+				if (g_start_resolution_h == -1) g_start_resolution_h = 720;
 			}
 
 			ReadJsonKeyBinding("key_w_camera_forward", KEY_W);
@@ -278,25 +341,29 @@ namespace
 			ReadJsonKeyBinding("key_r_camera_reset", KEY_R);
 			ReadJsonKeyBinding("key_192_camera_mouseMove", KEY_192);
 
-			if (document.HasMember("magicacloth_override")) {
-				g_magicacloth_override = document["magicacloth_override"].GetBool();
+			CONFIG_BOOL("magicacloth_override", g_magicacloth_override);
+			CONFIG_FLOAT("magicacloth_inertia_min", g_magicacloth_inertia_min);
+			CONFIG_FLOAT("magicacloth_inertia_max", g_magicacloth_inertia_max);
+			CONFIG_FLOAT("magicacloth_radius_min", g_magicacloth_radius_min);
+			CONFIG_FLOAT("magicacloth_radius_max", g_magicacloth_radius_max);
+			CONFIG_FLOAT("magicacloth_damping", g_magicacloth_damping);
+			CONFIG_FLOAT("magicacloth_movementSpeedLimit", g_magicacloth_movementSpeedLimit);
+			CONFIG_FLOAT("magicacloth_rotationSpeedLimit", g_magicacloth_rotationSpeedLimit);
+			CONFIG_FLOAT("magicacloth_localMovementSpeedLimit", g_magicacloth_localMovementSpeedLimit);
+			CONFIG_FLOAT("magicacloth_localRotationSpeedLimit", g_magicacloth_localRotationSpeedLimit);
+			CONFIG_FLOAT("magicacloth_particleSpeedLimit", g_magicacloth_particleSpeedLimit);
+			CONFIG_FLOAT("magicacloth_limitAngle", g_magicacloth_limitAngle);
+			CONFIG_FLOAT("magicacloth_springLimitDistance", g_magicacloth_springLimitDistance);
+			CONFIG_FLOAT("magicacloth_springNoise", g_magicacloth_springNoise);
+
+			if (configModified) {
+				std::ofstream ofs(ConfigJson);
+				rapidjson::OStreamWrapper osw(ofs);
+				rapidjson::PrettyWriter<rapidjson::OStreamWrapper> writer(osw);
+				document.Accept(writer);
 			}
-			READ_JSON_FLOAT(magicacloth_inertia_min);
-			READ_JSON_FLOAT(magicacloth_inertia_max);
-			READ_JSON_FLOAT(magicacloth_radius_min);
-			READ_JSON_FLOAT(magicacloth_radius_max);
-			READ_JSON_FLOAT(magicacloth_damping);
-			READ_JSON_FLOAT(magicacloth_movementSpeedLimit);
-			READ_JSON_FLOAT(magicacloth_rotationSpeedLimit);
-			READ_JSON_FLOAT(magicacloth_localMovementSpeedLimit);
-			READ_JSON_FLOAT(magicacloth_localRotationSpeedLimit);
-			READ_JSON_FLOAT(magicacloth_particleSpeedLimit);
-			READ_JSON_FLOAT(magicacloth_limitAngle);
-			READ_JSON_FLOAT(magicacloth_springLimitDistance);
-			READ_JSON_FLOAT(magicacloth_springNoise);
 		}
 
-		config_stream.close();
 		return dicts;
 	}
 }
@@ -358,6 +425,8 @@ int __stdcall DllMain(HINSTANCE dllModule, DWORD reason, LPVOID)
 				start_console();
 			}
 
+			InstallCrashHandler();
+
 			init_hook();
 
 			std::mutex mutex;
@@ -369,7 +438,7 @@ int __stdcall DllMain(HINSTANCE dllModule, DWORD reason, LPVOID)
 					cond.notify_one();
 				};
 
-			// 依赖检查游戏版本的指针加载，因此在 hook 完成后再加载翻译数据
+			// Translation loading depends on game-version-specific pointers; load after hook is ready
 			std::unique_lock lock(mutex);
 			cond.wait(lock, [&] {
 				return hookIsReady.load(std::memory_order_acquire);
@@ -382,7 +451,7 @@ int __stdcall DllMain(HINSTANCE dllModule, DWORD reason, LPVOID)
 			}
 
 			reloadTransData();
-			SetConsoleTitleW(CONSOLE_TITLE);  // 保持控制台标题
+			SetConsoleTitleW(CONSOLE_TITLE);  // Keep console title
 			});
 		init_thread.detach();
 	}

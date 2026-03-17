@@ -20,6 +20,10 @@ std::function<void()> g_on_hook_ready;
 std::function<void()> g_on_close;
 std::function<void()> on_hotKey_0;
 bool needPrintStack = false;
+bool g_debugMode = true;
+bool g_isDumping = true;
+std::string g_dumpingScenarioId = "";
+std::set<std::string> g_dumpedUUIDs{};
 std::vector<std::pair<std::pair<int, int>, int>> replaceDressResIds{};
 std::map<std::string, CharaParam_t> charaParam{};
 CharaParam_t baseParam(0.0f, 0.0f, 0.0f, 0.0f, 0.0f);
@@ -392,7 +396,7 @@ namespace
 	bool (*CloseNPGameMon)();
 
 	void reopen_self() {
-		int result = MessageBoxW(NULL, L"未检测到目标加载，插件初始化失败。是否重启游戏？", L"提示", MB_OKCANCEL);
+		int result = MessageBoxW(NULL, L"鏈娴嬪埌鐩爣鍔犺浇锛屾彃浠跺垵濮嬪寲澶辫触銆傛槸鍚﹂噸鍚父鎴忥紵", L"鎻愮ず", MB_OKCANCEL);
 
 		if (result == IDOK)
 		{
@@ -545,9 +549,9 @@ namespace
 		{
 			replaceFont = il2cpp_gchandle_get_target(ReplaceFontGcHandle);
 
-			// 加载场景时会被 Resources.UnloadUnusedAssets 干掉，且不受 DontDestroyOnLoad 影响，暂且判断是否存活，并在必要的时候重新加载
-			// TODO: 考虑挂载到 GameObject 上
-			// AssetBundle 不会被干掉
+			// 鍔犺浇鍦烘櫙鏃朵細琚?Resources.UnloadUnusedAssets 骞叉帀锛屼笖涓嶅彈 DontDestroyOnLoad 褰卞搷锛屾殏涓斿垽鏂槸鍚﹀瓨娲伙紝骞跺湪蹇呰鐨勬椂鍊欓噸鏂板姞杞?
+			// TODO: 鑰冭檻鎸傝浇鍒?GameObject 涓?
+			// AssetBundle 涓嶄細琚共鎺?
 			if (Object_IsNativeObjectAlive(replaceFont))
 			{
 				return replaceFont;
@@ -582,7 +586,7 @@ namespace
 
 	std::filesystem::path dumpBasePath("dumps");
 
-	// 调用之前检查 DataFile_IsKeyExist
+	// 璋冪敤涔嬪墠妫€鏌?DataFile_IsKeyExist
 	void fmtAndDumpJsonBytesData(const std::wstring& dumpName) {
 		const auto dumpNameIl = il2cpp_symbols::NewWStr(dumpName);
 		auto dataBytes = (reinterpret_cast<void* (*)(Il2CppString*)>HOOK_GET_ORIG(DataFile_GetBytes))(dumpNameIl);
@@ -595,7 +599,7 @@ namespace
 			writeWstr.replace(pos, 1, replaceStr);
 			pos = writeWstr.find(searchStr, pos + replaceStr.length());
 		}
-		if (writeWstr.ends_with(L",]")) {  // 代哥的 Json 就是不一样
+		if (writeWstr.ends_with(L",]")) {  // 浠ｅ摜鐨?Json 灏辨槸涓嶄竴鏍?
 			writeWstr.erase(writeWstr.length() - 2, 1);
 		}
 		const auto dumpLocalFilePath = dumpBasePath / SCLocal::getFilePathByName(dumpName, true, dumpBasePath);
@@ -669,7 +673,7 @@ namespace
 		catch (std::exception& e) {
 			printf("dumpScenarioFromCatalog error: %s\n", e.what());
 		}
-		// 下方方法已过时
+		// 涓嬫柟鏂规硶宸茶繃鏃?
 		int totalCount = 0;
 		const auto titleData = nlohmann::json::parse(localizationDataCache);
 		for (auto& it : titleData.items()) {
@@ -1742,7 +1746,7 @@ namespace
 				}
 			}
 			else {
-				// set_Text(_this, il2cpp_symbols::NewWStr(std::format(L"(接口l){}", std::wstring(origText->start_char))));
+				// set_Text(_this, il2cpp_symbols::NewWStr(std::format(L"(鎺ュ彛l){}", std::wstring(origText->start_char))));
 			}
 		}
 
@@ -1913,7 +1917,7 @@ namespace
 	//	HOOK_CAST_CALL(void, PostProcess_DepthOfFieldClip_CreatePlayable)(retstr, _this, graph, go, mtd);
 	//}
 
-	// 已过时
+	// 宸茶繃鏃?
 	HOOK_ORIG_TYPE Live_SetEnableDepthOfField_orig;
 	void Live_SetEnableDepthOfField_hook(void* _this, bool isEnable) {
 		if (g_enable_free_camera) {
@@ -1922,7 +1926,7 @@ namespace
 		return HOOK_CAST_CALL(void, Live_SetEnableDepthOfField)(_this, isEnable);
 	}
 
-	// 未hook
+	// 鏈猦ook
 	HOOK_ORIG_TYPE Live_Update_orig;
 	void Live_Update_hook(void* _this) {
 		HOOK_CAST_CALL(void, Live_Update)(_this);
@@ -1983,7 +1987,7 @@ namespace
 
 
 	HOOK_ORIG_TYPE LiveCostumeChangeModel_GetDress_orig;
-	void* LiveCostumeChangeModel_GetDress_hook(void* _this, int id) {  // 替换服装 ResID
+	void* LiveCostumeChangeModel_GetDress_hook(void* _this, int id) {  // 鏇挎崲鏈嶈 ResID
 		auto ret = HOOK_CAST_CALL(void*, LiveCostumeChangeModel_GetDress)(_this, id);
 		if (!g_unlock_all_dress) return ret;
 		if (!ret) {
@@ -2000,7 +2004,7 @@ namespace
 	}
 
 	HOOK_ORIG_TYPE LiveCostumeChangeModel_GetAccessory_orig;
-	void* LiveCostumeChangeModel_GetAccessory_hook(void* _this, int id) {  // 替换饰品 ResID
+	void* LiveCostumeChangeModel_GetAccessory_hook(void* _this, int id) {  // 鏇挎崲楗板搧 ResID
 		auto ret = HOOK_CAST_CALL(void*, LiveCostumeChangeModel_GetAccessory)(_this, id);
 		if (!(g_unlock_all_dress && g_unlock_all_headwear)) return ret;
 		if (!ret) {
@@ -2037,7 +2041,7 @@ namespace
 	}
 
 	HOOK_ORIG_TYPE LiveCostumeChangeModel_GetHairstyle_orig;
-	void* LiveCostumeChangeModel_GetHairstyle_hook(void* _this, int id) {  // 替换头发 ResID
+	void* LiveCostumeChangeModel_GetHairstyle_hook(void* _this, int id) {  // 鏇挎崲澶村彂 ResID
 		auto ret = HOOK_CAST_CALL(void*, LiveCostumeChangeModel_GetHairstyle)(_this, id);
 		if (!(g_unlock_all_dress && g_unlock_all_headwear)) return ret;
 		if (!ret) {
@@ -2079,7 +2083,7 @@ namespace
 	std::map<int, void*> cacheAccessoryMap{};
 
 	HOOK_ORIG_TYPE LiveCostumeChangeModel_ctor_orig;
-	void LiveCostumeChangeModel_ctor_hook(void* _this, void* reply, void* idol, int costumeType, bool forceDressOrdered) {  // 添加服装到 dressDic
+	void LiveCostumeChangeModel_ctor_hook(void* _this, void* reply, void* idol, int costumeType, bool forceDressOrdered) {  // 娣诲姞鏈嶈鍒?dressDic
 		/*
 		static auto iidol_klass = il2cpp_symbols::get_class_from_instance(idol);
 		static auto get_CharacterId_mtd = il2cpp_class_get_method_from_name(iidol_klass, "get_CharacterId", 0);
@@ -2296,7 +2300,7 @@ namespace
 	}
 
 	HOOK_ORIG_TYPE dic_int_ICostumeStatus_add_orig;
-	void dic_int_ICostumeStatus_add_hook(void* _this, int key, void* value, MethodInfo* method) {  // 添加服装到缓存表(失效)
+	void dic_int_ICostumeStatus_add_hook(void* _this, int key, void* value, MethodInfo* method) {  // 娣诲姞鏈嶈鍒扮紦瀛樿〃(澶辨晥)
 		if ((g_unlock_all_dress || g_allow_use_tryon_costume) && confirmationingModel) checkAndAddCostume(key, value);
 		return HOOK_CAST_CALL(void, dic_int_ICostumeStatus_add)(_this, key, value, method);
 	}
@@ -2325,7 +2329,7 @@ namespace
 	}
 
 	HOOK_ORIG_TYPE GetCostumeListReply_get_CostumeList_orig;
-	void* GetCostumeListReply_get_CostumeList_hook(void* _this) {  // 添加服装到缓存表
+	void* GetCostumeListReply_get_CostumeList_hook(void* _this) {  // 娣诲姞鏈嶈鍒扮紦瀛樿〃
 		auto ret = HOOK_CAST_CALL(void*, GetCostumeListReply_get_CostumeList)(_this);
 		checkCostumeListReply(_this, ret, "mstCostumeId_");
 		return ret;
@@ -2333,14 +2337,14 @@ namespace
 
 	// The first registered auto getter
 	HOOK_ORIG_TYPE GetCostumeListReply_get_HairstyleList_orig;
-	void* GetCostumeListReply_get_HairstyleList_hook(void* _this) {  // 添加服装到缓存表
+	void* GetCostumeListReply_get_HairstyleList_hook(void* _this) {  // 娣诲姞鏈嶈鍒扮紦瀛樿〃
 		auto ret = HOOK_CAST_CALL(void*, GetCostumeListReply_get_HairstyleList)(_this);
 		checkCostumeListReply(_this, ret, "mstHairstyleId_");
 		return ret;
 	}
 
 	HOOK_ORIG_TYPE GetCostumeListReply_get_AccessoryList_orig;
-	void* GetCostumeListReply_get_AccessoryList_hook(void* _this) {  // 添加服装到缓存表
+	void* GetCostumeListReply_get_AccessoryList_hook(void* _this) {  // 娣诲姞鏈嶈鍒扮紦瀛樿〃
 		auto ret = HOOK_CAST_CALL(void*, GetCostumeListReply_get_AccessoryList)(_this);
 		checkCostumeListReply(_this, ret, "mstAccessoryId_");
 		return ret;
@@ -2437,7 +2441,7 @@ namespace
 
 	HOOK_ORIG_TYPE LiveMVUnit_GetMemberChangeRequestData_orig;
 	void* LiveMVUnit_GetMemberChangeRequestData_hook(void* _this, int position, void* idol, int exchangePosition) {
-		if (g_allow_same_idol) {  // 此方法已过时
+		if (g_allow_same_idol) {  // 姝ゆ柟娉曞凡杩囨椂
 			exchangePosition = -1;
 		}
 		return HOOK_CAST_CALL(void*, LiveMVUnit_GetMemberChangeRequestData)(_this, position, idol, exchangePosition);

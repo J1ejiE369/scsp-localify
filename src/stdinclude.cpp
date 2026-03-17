@@ -1,5 +1,7 @@
 #include <stdinclude.hpp>
 #include <rapidjson/error/en.h>
+#include <Psapi.h> // For GetModuleHandleEx, GetModuleFileName
+#include <conio.h>
 
 namespace debug {
 	void DumpRelationMemoryHex(const void* target, const size_t length)
@@ -229,14 +231,45 @@ namespace debug {
 	}
 }
 
-
-LONG WINAPI seh_filter(EXCEPTION_POINTERS* ep) {
+// Crash diagnostics for locating and analyzing crash points. Exception code, address, and type
+// classification are reliable. Memory hex dump and register dump are experimental; reliability
+// is not yet guaranteed.
+void LogException(EXCEPTION_POINTERS* ep) {
 	DWORD code = ep->ExceptionRecord->ExceptionCode;
 	PVOID addr = ep->ExceptionRecord->ExceptionAddress;
 
 	std::cerr << "!! SEH Exception caught !!" << std::endl;
 	std::cerr << "  Code: 0x" << std::hex << code << std::endl;
-	std::cerr << "  Address: " << addr << std::endl;
+	
+	// Identify module source (plugin / game / system)
+    HMODULE hModule = NULL;
+    char moduleName[MAX_PATH] = "Unknown Module";
+    
+    // Get module handle from address
+    if (GetModuleHandleExA(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT, 
+        (LPCSTR)addr, &hModule)) {
+        
+        // Get module filename
+        if (GetModuleFileNameA(hModule, moduleName, sizeof(moduleName))) {
+            // Keep only filename, remove path
+            char* pFileName = strrchr(moduleName, '\\');
+            if (pFileName) {
+                strcpy_s(moduleName, pFileName + 1);
+            }
+        }
+    }
+
+    std::cerr << "  Address: " << addr << " [" << moduleName << "]" << std::endl;
+
+    // Simple classification
+    std::string modStr = moduleName;
+    if (modStr == "scsp-localify.dll") {
+         std::cerr << "  Source: [PLUGIN ERROR] Crash originated from our plugin code." << std::endl;
+    } else if (modStr == "GameAssembly.dll" || modStr == "UnityPlayer.dll") {
+         std::cerr << "  Source: [GAME ERROR] Crash originated from Unity/Game logic." << std::endl;
+    } else {
+         std::cerr << "  Source: [SYSTEM/OTHER] Crash originated from system or other libraries." << std::endl;
+    }
 
 	switch (code) {
 	case EXCEPTION_ACCESS_VIOLATION:
@@ -253,11 +286,41 @@ LONG WINAPI seh_filter(EXCEPTION_POINTERS* ep) {
 		break;
 	}
 
+	// Experimental: reliability not yet guaranteed
 	debug::DumpRelationMemoryHex((const void*)((uintptr_t)addr - 0x20));
 	debug::DumpRegisters();
 	debug::PrintManagedStackTrace();
+}
 
+// SEH filter for __try/__except blocks; logs exception and swallows it.
+LONG WINAPI seh_filter(EXCEPTION_POINTERS* ep) {
+	LogException(ep);
 	return EXCEPTION_EXECUTE_HANDLER;
+}
+
+// Unhandled exception filter; logs crash, waits for user, then passes to Unity crash handler.
+LONG WINAPI GlobalCrashHandler(EXCEPTION_POINTERS* ep) {
+	// Ensure console exists
+	if (!GetConsoleWindow()) {
+		AllocConsole();
+		FILE* fp;
+		freopen_s(&fp, "CONOUT$", "w", stdout);
+		freopen_s(&fp, "CONOUT$", "w", stderr);
+	}
+
+	LogException(ep);
+
+	std::cerr << "\n[FATAL] Program is about to crash. Execution frozen." << std::endl;
+	std::cerr << "Press any key to pass exception to Unity crash handler..." << std::endl;
+
+	_getch();
+
+	return EXCEPTION_CONTINUE_SEARCH;
+}
+
+// Install global crash handler to capture unhandled exceptions before Unity.
+void InstallCrashHandler() {
+	SetUnhandledExceptionFilter(GlobalCrashHandler);
 }
 
 
@@ -409,7 +472,7 @@ void UnitIdol::ApplyTo(managed::UnitIdol* managed) {
 		auto boxed = il2cpp_value_box((Il2CppClass*)klass_System_Int32, &AccessoryIds[i]);
 		il2cpp_symbols::array_set_value(accessoryIds, boxed, i);
 	}
-	il2cpp_field_set_value_object(managed, field_UnitIdol_accessoryIds, accessoryIds);
+	il2cpp_field_set_value(managed, field_UnitIdol_accessoryIds, &accessoryIds);
 }
 
 void UnitIdol::Clear() {

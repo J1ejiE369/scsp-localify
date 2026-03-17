@@ -1,6 +1,9 @@
 #pragma once
 
+#include <functional>
+
 namespace MHotkey {
+	void RegisterHotkey(int key, std::function<void()> callback);
 	void SetKeyCallBack(std::function<void(int, DWORD, DWORD, DWORD, DWORD, DWORD, DWORD, DWORD, DWORD)> callbackfun);
 	bool get_is_plugin_open();
 	void set_ext_server_start(bool status);
