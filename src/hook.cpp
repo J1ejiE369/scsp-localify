@@ -3784,7 +3784,6 @@ namespace
 		ADD_HOOK(TextLog_AddLog, "TextLog_AddLog at %p");
 		ADD_HOOK(InvokeMoveNext, "InvokeMoveNext at %p");
 		// ADD_HOOK(Live_SetEnableDepthOfField, "Live_SetEnableDepthOfField at %p");
-		ADD_HOOK(DepthOfFieldClip_CreatePlayable, "DepthOfFieldClip_CreatePlayable at %p");
 		//ADD_HOOK(PostProcess_DepthOfFieldClip_CreatePlayable, "PostProcess_DepthOfFieldClip_CreatePlayable at %p");
 		// ADD_HOOK(Live_Update, "Live_Update at %p");
 		//ADD_HOOK(LiveCostumeChangeView_setTryOnMode, "LiveCostumeChangeView_setTryOnMode at %p");
